@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OSRS Price Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<h2>OSRS Price Tracker</h2>
+
+<canvas id="chart"></canvas>
+
+<script>
+
+const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
+const SUPABASE_ANON_KEY = "PASTE_ANON_KEY_HERE";
+
+async function loadData() {
+
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/prices?item_id=eq.20997&order=timestamp.asc`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+
+  const data = await res.json();
+
+  const labels = data.map(d =>
+    new Date(d.timestamp * 1000).toLocaleTimeString()
+  );
+
+  const prices = data.map(d => d.mid_price);
+
+  new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Twisted Bow Price",
+        data: prices,
+        borderWidth: 2
+      }]
+    }
+  });
+
+}
+
+loadData();
+
+</script>
+
+</body>
+</html>
