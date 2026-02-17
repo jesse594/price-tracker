@@ -8,6 +8,7 @@
       width: 100%;
       max-width: 1000px;
       height: 500px;
+      margin-bottom: 32px;
     }
     .chart-wrap canvas {
       display: block;
@@ -18,13 +19,7 @@
 
 <h2>OSRS Price Tracker</h2>
 
-<div class="chart-wrap">
-  <canvas id="chart"></canvas>
-</div>
-
-<div class="chart-wrap">
-  <canvas id="chart-hourly"></canvas>
-</div>
+<div id="charts-root"></div>
 
 <script>
 
@@ -44,10 +39,16 @@ function formatPrice(value) {
   return value;
 }
 
-async function loadData() {
+const ITEMS = [
+  { id: 20997, name: "Twisted Bow" },
+  { id: 6731, name: "Seers Ring" },
+  { id: 19547, name: "Necklace of Anguish" },
+  { id: 21902, name: "Dragon Crossbow" }
+];
 
+async function buildChartsForItem(item) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/prices?item_id=eq.20997&order=timestamp.asc`,
+    `${SUPABASE_URL}/rest/v1/prices?item_id=eq.${item.id}&order=timestamp.asc`,
     {
       headers: {
         apikey: SUPABASE_ANON_KEY,
@@ -57,20 +58,38 @@ async function loadData() {
   );
 
   const data = await res.json();
+  if (!Array.isArray(data) || data.length === 0) return;
+
+  const root = document.getElementById("charts-root");
+
+  const title = document.createElement("h3");
+  title.textContent = item.name;
+  root.appendChild(title);
+
+  const priceWrap = document.createElement("div");
+  priceWrap.className = "chart-wrap";
+  const priceCanvas = document.createElement("canvas");
+  priceWrap.appendChild(priceCanvas);
+  root.appendChild(priceWrap);
+
+  const hourlyWrap = document.createElement("div");
+  hourlyWrap.className = "chart-wrap";
+  const hourlyCanvas = document.createElement("canvas");
+  hourlyWrap.appendChild(hourlyCanvas);
+  root.appendChild(hourlyWrap);
 
   const labels = data.map(d =>
     new Date(d.timestamp * 1000).toLocaleTimeString()
   );
-
   const prices = data.map(d => d.mid_price);
 
-  // Build first chart: raw mid price over time
-  new Chart(document.getElementById("chart"), {
+  // Main price chart with 10M intervals on Y-axis
+  new Chart(priceCanvas, {
     type: "line",
     data: {
       labels,
       datasets: [{
-        label: "Twisted Bow Price",
+        label: `${item.name} Price`,
         data: prices,
         borderWidth: 2
       }]
@@ -90,14 +109,14 @@ async function loadData() {
           ticks: {
             autoSkip: false,
             callback: function (value, index) {
-              // Show a label roughly every 3 hours (data is every 5 minutes -> 36 points)
-              const STEP = 36;
+              const STEP = 36; // every ~3 hours (data every 5 minutes)
               return index % STEP === 0 ? labels[index] : "";
             }
           }
         },
         y: {
           ticks: {
+            stepSize: 10_000_000,
             callback: (value) => formatPrice(value)
           }
         }
@@ -105,12 +124,12 @@ async function loadData() {
     }
   });
 
-  // Build second chart: price change per hour
+  // Hourly change chart
   const hourlyMap = new Map();
   for (const point of data) {
     const date = new Date(point.timestamp * 1000);
     const hour = new Date(date);
-    hour.setMinutes(0, 0, 0); // round down to the hour
+    hour.setMinutes(0, 0, 0);
     const key = hour.getTime();
     if (!hourlyMap.has(key)) {
       hourlyMap.set(key, { first: point.mid_price, last: point.mid_price, date: hour });
@@ -133,12 +152,12 @@ async function loadData() {
     hourlyChanges.push(entry.last - entry.first);
   }
 
-  new Chart(document.getElementById("chart-hourly"), {
+  new Chart(hourlyCanvas, {
     type: "line",
     data: {
       labels: hourlyLabels,
       datasets: [{
-        label: "Twisted Bow change per hour",
+        label: `${item.name} change per hour`,
         data: hourlyChanges,
         borderWidth: 2,
         borderColor: "#ff9800"
@@ -163,13 +182,23 @@ async function loadData() {
         },
         y: {
           ticks: {
+            stepSize: 10_000_000,
             callback: (value) => formatPrice(value)
           }
         }
       }
     }
   });
+}
 
+async function loadData() {
+  for (const item of ITEMS) {
+    try {
+      await buildChartsForItem(item);
+    } catch (e) {
+      console.error("Failed to build charts for", item.name, e);
+    }
+  }
 }
 
 loadData();
