@@ -3,12 +3,24 @@
 <head>
   <title>OSRS Price Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .chart-wrap {
+      width: 50%;
+      max-width: 500px;
+      height: 250px;
+    }
+    .chart-wrap canvas {
+      display: block;
+    }
+  </style>
 </head>
 <body>
 
 <h2>OSRS Price Tracker</h2>
 
-<canvas id="chart"></canvas>
+<div class="chart-wrap">
+  <canvas id="chart"></canvas>
+</div>
 
 <script>
 
