@@ -29,13 +29,13 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 function formatPrice(value) {
   if (value >= 1_000_000_000) {
-    return (value / 1_000_000_000).toFixed(1).replace(/\.0$/, "") + "B";
+    return (value / 1_000_000_000).toFixed(2) + "B";
   }
   if (value >= 1_000_000) {
-    return (value / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+    return (value / 1_000_000).toFixed(2) + "M";
   }
   if (value >= 1_000) {
-    return (value / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+    return (value / 1_000).toFixed(2) + "K";
   }
   return value;
 }
@@ -83,8 +83,12 @@ async function loadData() {
       scales: {
         x: {
           ticks: {
-            autoSkip: true,
-            maxTicksLimit: 8
+            autoSkip: false,
+            callback: function (value, index) {
+              // Show a label roughly every 3 hours (data is every 5 minutes -> 36 points)
+              const STEP = 36;
+              return index % STEP === 0 ? labels[index] : "";
+            }
           }
         },
         y: {
