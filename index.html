@@ -22,6 +22,10 @@
   <canvas id="chart"></canvas>
 </div>
 
+<div class="chart-wrap">
+  <canvas id="chart-hourly"></canvas>
+</div>
+
 <script>
 
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
@@ -60,6 +64,7 @@ async function loadData() {
 
   const prices = data.map(d => d.mid_price);
 
+  // Build first chart: raw mid price over time
   new Chart(document.getElementById("chart"), {
     type: "line",
     data: {
@@ -89,6 +94,71 @@ async function loadData() {
               const STEP = 36;
               return index % STEP === 0 ? labels[index] : "";
             }
+          }
+        },
+        y: {
+          ticks: {
+            callback: (value) => formatPrice(value)
+          }
+        }
+      }
+    }
+  });
+
+  // Build second chart: price change per hour
+  const hourlyMap = new Map();
+  for (const point of data) {
+    const date = new Date(point.timestamp * 1000);
+    const hour = new Date(date);
+    hour.setMinutes(0, 0, 0); // round down to the hour
+    const key = hour.getTime();
+    if (!hourlyMap.has(key)) {
+      hourlyMap.set(key, { first: point.mid_price, last: point.mid_price, date: hour });
+    } else {
+      const entry = hourlyMap.get(key);
+      entry.last = point.mid_price;
+    }
+  }
+
+  const hourlyLabels = [];
+  const hourlyChanges = [];
+  for (const entry of hourlyMap.values()) {
+    hourlyLabels.push(
+      entry.date.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric"
+      })
+    );
+    hourlyChanges.push(entry.last - entry.first);
+  }
+
+  new Chart(document.getElementById("chart-hourly"), {
+    type: "line",
+    data: {
+      labels: hourlyLabels,
+      datasets: [{
+        label: "Twisted Bow change per hour",
+        data: hourlyChanges,
+        borderWidth: 2,
+        borderColor: "#ff9800"
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      elements: {
+        point: {
+          radius: 0,
+          hitRadius: 6,
+          hoverRadius: 4
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 12
           }
         },
         y: {
