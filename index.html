@@ -39,6 +39,28 @@ function formatPrice(value) {
   return value;
 }
 
+// Pick a \"nice\" tick size based on a value range.
+function chooseStepSize(range) {
+  if (range <= 0) return 1;
+  const approx = range / 10; // aim for ~10 ticks
+  const steps = [
+    100_000,      // 100K
+    250_000,      // 250K
+    500_000,      // 500K
+    1_000_000,    // 1M
+    2_000_000,    // 2M
+    5_000_000,    // 5M
+    10_000_000,   // 10M
+    20_000_000,   // 20M
+    50_000_000,   // 50M
+    100_000_000   // 100M
+  ];
+  for (const s of steps) {
+    if (approx <= s) return s;
+  }
+  return steps[steps.length - 1];
+}
+
 const ITEMS = [
   { id: 20997, name: "Twisted Bow" },
   { id: 6731, name: "Seers Ring" },
@@ -83,7 +105,12 @@ async function buildChartsForItem(item) {
   );
   const prices = data.map(d => d.mid_price);
 
-  // Main price chart with 10M intervals on Y-axis
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice;
+  const priceStep = chooseStepSize(priceRange);
+
+  // Main price chart with dynamic intervals on Y-axis
   new Chart(priceCanvas, {
     type: "line",
     data: {
@@ -116,7 +143,7 @@ async function buildChartsForItem(item) {
         },
         y: {
           ticks: {
-            stepSize: 10_000_000,
+            stepSize: priceStep,
             callback: (value) => formatPrice(value)
           }
         }
@@ -127,6 +154,10 @@ async function buildChartsForItem(item) {
   // Profit / loss from first price over time
   const basePrice = prices[0];
   const diffSeries = prices.map(p => p - basePrice);
+  const diffMin = Math.min(...diffSeries, 0);
+  const diffMax = Math.max(...diffSeries, 0);
+  const diffRange = diffMax - diffMin;
+  const diffStep = chooseStepSize(diffRange);
 
   new Chart(hourlyCanvas, {
     type: "line",
@@ -161,7 +192,7 @@ async function buildChartsForItem(item) {
         },
         y: {
           ticks: {
-            stepSize: 10_000_000,
+            stepSize: diffStep,
             callback: (value) => formatPrice(value)
           }
         }
