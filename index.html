@@ -124,41 +124,17 @@ async function buildChartsForItem(item) {
     }
   });
 
-  // Hourly change chart
-  const hourlyMap = new Map();
-  for (const point of data) {
-    const date = new Date(point.timestamp * 1000);
-    const hour = new Date(date);
-    hour.setMinutes(0, 0, 0);
-    const key = hour.getTime();
-    if (!hourlyMap.has(key)) {
-      hourlyMap.set(key, { first: point.mid_price, last: point.mid_price, date: hour });
-    } else {
-      const entry = hourlyMap.get(key);
-      entry.last = point.mid_price;
-    }
-  }
-
-  const hourlyLabels = [];
-  const hourlyChanges = [];
-  for (const entry of hourlyMap.values()) {
-    hourlyLabels.push(
-      entry.date.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric"
-      })
-    );
-    hourlyChanges.push(entry.last - entry.first);
-  }
+  // Profit / loss from first price over time
+  const basePrice = prices[0];
+  const diffSeries = prices.map(p => p - basePrice);
 
   new Chart(hourlyCanvas, {
     type: "line",
     data: {
-      labels: hourlyLabels,
+      labels,
       datasets: [{
-        label: `${item.name} change per hour`,
-        data: hourlyChanges,
+        label: `${item.name} profit / loss from start`,
+        data: diffSeries,
         borderWidth: 2,
         borderColor: "#ff9800"
       }]
@@ -176,8 +152,11 @@ async function buildChartsForItem(item) {
       scales: {
         x: {
           ticks: {
-            autoSkip: true,
-            maxTicksLimit: 12
+            autoSkip: false,
+            callback: function (value, index) {
+              const STEP = 36; // every ~3 hours
+              return index % STEP === 0 ? labels[index] : "";
+            }
           }
         },
         y: {
