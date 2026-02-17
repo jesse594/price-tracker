@@ -5,9 +5,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     .chart-wrap {
-      width: 50%;
-      max-width: 500px;
-      height: 250px;
+      width: 100%;
+      max-width: 1000px;
+      height: 500px;
     }
     .chart-wrap canvas {
       display: block;
@@ -26,6 +26,19 @@
 
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
+
+function formatPrice(value) {
+  if (value >= 1_000_000_000) {
+    return (value / 1_000_000_000).toFixed(1).replace(/\.0$/, "") + "B";
+  }
+  if (value >= 1_000_000) {
+    return (value / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  }
+  if (value >= 1_000) {
+    return (value / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  }
+  return value;
+}
 
 async function loadData() {
 
@@ -56,6 +69,30 @@ async function loadData() {
         data: prices,
         borderWidth: 2
       }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      elements: {
+        point: {
+          radius: 0,
+          hitRadius: 6,
+          hoverRadius: 4
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 8
+          }
+        },
+        y: {
+          ticks: {
+            callback: (value) => formatPrice(value)
+          }
+        }
+      }
     }
   });
 
