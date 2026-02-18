@@ -245,7 +245,109 @@ function createChart(id, dataArray, valueKey, label, color) {
 
 }
 
+async function loadOntology() {
+
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/ontology_flips?select=*`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  );
+
+  const trades = await res.json();
+
+  if (!trades || !trades.length) return;
+
+  let totalProfit = 0;
+  let wins = 0;
+  let equity = 0;
+
+  const equityData = [];
+  const labels = [];
+
+  const tableBody = document.querySelector("#tradesTable tbody");
+  tableBody.innerHTML = "";
+
+  let completedCount = 0;
+
+  trades.forEach(trade => {
+
+    if (!trade.sell_price) return;
+
+    completedCount++;
+    const profit = trade.sell_price - trade.buy_price;
+
+    totalProfit += profit;
+    equity += profit;
+
+    if (profit > 0) wins++;
+
+    equityData.push(equity);
+    labels.push(new Date(trade.buy_time).toLocaleTimeString());
+
+    const row = `
+      <tr>
+        <td>${new Date(trade.buy_time).toLocaleString()}</td>
+        <td>${trade.buy_price}</td>
+        <td>${trade.sell_price}</td>
+        <td>${profit}</td>
+      </tr>
+    `;
+
+    tableBody.innerHTML += row;
+
+  });
+
+  if (completedCount === 0) return;
+
+  const winRate = (wins / completedCount) * 100;
+
+  document.getElementById("totalProfit").textContent = totalProfit.toLocaleString();
+  document.getElementById("winRate").textContent = winRate.toFixed(1);
+  document.getElementById("totalTrades").textContent = completedCount;
+
+  if (charts.equityChart) {
+    charts.equityChart.destroy();
+    charts.equityChart = null;
+  }
+
+  charts.equityChart = new Chart(document.getElementById("equityChart"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Equity Curve",
+        data: equityData,
+        borderColor: "rgb(0,255,150)",
+        tension: 0.1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          grid: { display: true, color: "rgba(255,255,255,0.12)", borderDash: [4, 4] },
+          ticks: { color: "white" }
+        },
+        y: {
+          grid: { display: true, color: "rgba(255,255,255,0.12)", borderDash: [4, 4] },
+          ticks: { color: "white" }
+        }
+      },
+      plugins: {
+        legend: { labels: { color: "white" } }
+      }
+    }
+  });
+
+}
+
 loadData();
+loadOntology();
 
 setInterval(loadData, 300000);
 
