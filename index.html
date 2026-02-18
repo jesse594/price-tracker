@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>OSRS Ontology Dashboard</title>
+  <title>Seers Ring Ontology Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
@@ -70,7 +70,7 @@
 </head>
 <body>
 
-<h1>Dragon Crossbow Ontology Dashboard</h1>
+<h1>Seers Ring Ontology Dashboard</h1>
 
 <div class="card">
   <div id="stats"></div>
@@ -118,7 +118,8 @@
 
 <div class="card">
   <h2>Max profit points (dashboard)</h2>
-  <p class="key">Spread, volume and profit from <code>max_profit_points</code>.</p>
+  <p class="key">Seers ring: spread, volume and profit from <code>max_profit_points</code>.</p>
+  <p id="mppStatus" class="stat" style="margin-bottom:12px;"></p>
   <div class="chart-container"><canvas id="mppSpreadChart"></canvas></div>
   <div class="chart-container"><canvas id="mppVolumeChart"></canvas></div>
   <div class="chart-container"><canvas id="mppProfitChart"></canvas></div>
@@ -129,7 +130,7 @@
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
 
-const ITEM_ID = 21902;
+const ITEM_ID = 6731;
 const charts = {};
 
 const STEP_EVERY_3_HOURS = 36;
@@ -159,7 +160,8 @@ async function loadData() {
     {
       headers: {
         apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Range: "0-99999"
       }
     }
   );
@@ -256,11 +258,12 @@ function createChart(id, dataArray, valueKey, label, color) {
 async function loadOntology() {
 
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/ontology_flips?select=*`,
+    `${SUPABASE_URL}/rest/v1/ontology_flips?select=*&order=buy_time.asc`,
     {
       headers: {
         apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Range: "0-99999"
       }
     }
   );

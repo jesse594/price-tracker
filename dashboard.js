@@ -1,24 +1,46 @@
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
 
+const SEERS_RING_ITEM_ID = 6731;
 const mppCharts = {};
+
+function setMppStatus(msg) {
+  const el = document.getElementById("mppStatus");
+  if (el) el.textContent = msg;
+}
 
 async function fetchMaxProfitPoints() {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/max_profit_points?order=timestamp.asc`,
+    `${SUPABASE_URL}/rest/v1/max_profit_points?item_id=eq.${SEERS_RING_ITEM_ID}&order=timestamp.asc`,
     {
       headers: {
         apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Range: "0-99999"
       }
     }
   );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error("max_profit_points: " + res.status + " " + text.slice(0, 80));
+  }
   return await res.json();
 }
 
 async function buildCharts() {
-  const data = await fetchMaxProfitPoints();
-  if (!data || data.length === 0) return;
+  setMppStatus("Loading…");
+  let data;
+  try {
+    data = await fetchMaxProfitPoints();
+    if (!data || data.length === 0) {
+      setMppStatus("No data yet. Add rows to the max_profit_points table in Supabase.");
+      return;
+    }
+    setMppStatus("");
+  } catch (e) {
+    setMppStatus("Error: " + e.message);
+    return;
+  }
 
   const timestamps = data.map(d =>
     new Date(d.timestamp * 1000).toLocaleTimeString()
