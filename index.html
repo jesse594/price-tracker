@@ -47,6 +47,25 @@
       color: #6b7c8d;
       margin-top: 8px;
     }
+
+    .trades-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    .trades-table th,
+    .trades-table td {
+      padding: 8px 12px;
+      text-align: left;
+      border: 1px solid #2a3544;
+      color: white;
+    }
+    .trades-table th {
+      background: #1a2332;
+    }
+    .trades-table tbody tr:nth-child(even) {
+      background: #161e2a;
+    }
   </style>
 </head>
 <body>
@@ -74,6 +93,27 @@
   <h3>Volume</h3>
   <p class="key">Number of trades (pieces) in the period.</p>
   <div class="chart-container"><canvas id="volumeChart"></canvas></div>
+</div>
+
+<div class="card">
+  <h2>Ontology Performance</h2>
+  <div>
+    <p class="stat">Total Profit: <span id="totalProfit">0</span> gp</p>
+    <p class="stat">Win Rate: <span id="winRate">0</span>%</p>
+    <p class="stat">Total Trades: <span id="totalTrades">0</span></p>
+  </div>
+  <div class="chart-container"><canvas id="equityChart"></canvas></div>
+  <table border="1" id="tradesTable" class="trades-table">
+    <thead>
+      <tr>
+        <th>Buy Time</th>
+        <th>Buy Price</th>
+        <th>Sell Price</th>
+        <th>Profit</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 </div>
 
 <script>
