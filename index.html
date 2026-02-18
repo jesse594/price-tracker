@@ -1,76 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>OSRS Price Tracker</title>
+  <title>OSRS Ontology Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    .chart-wrap {
-      width: 100%;
-      max-width: 1000px;
-      height: 500px;
-      margin-bottom: 32px;
+    body {
+      font-family: Arial;
+      background: #0b0f14;
+      color: white;
+      padding: 20px;
     }
-    .chart-wrap canvas {
-      display: block;
+
+    .card {
+      background: #121821;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+
+    canvas {
+      background: #121821;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .stat {
+      font-size: 18px;
+      margin: 5px 0;
     }
   </style>
 </head>
 <body>
 
-<h2>OSRS Price Tracker</h2>
+<h1>Dragon Crossbow Ontology Dashboard</h1>
 
-<div id="charts-root"></div>
+<div class="card">
+  <div id="stats"></div>
+</div>
+
+<div class="card">
+  <h3>Price</h3>
+  <canvas id="priceChart"></canvas>
+</div>
+
+<div class="card">
+  <h3>Spread</h3>
+  <canvas id="spreadChart"></canvas>
+</div>
+
+<div class="card">
+  <h3>Volume</h3>
+  <canvas id="volumeChart"></canvas>
+</div>
 
 <script>
 
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
 
-function formatPrice(value) {
-  if (value >= 1_000_000_000) {
-    return (value / 1_000_000_000).toFixed(2) + "B";
-  }
-  if (value >= 1_000_000) {
-    return (value / 1_000_000).toFixed(2) + "M";
-  }
-  if (value >= 1_000) {
-    return (value / 1_000).toFixed(2) + "K";
-  }
-  return value;
-}
+const ITEM_ID = 21902;
+const charts = {};
 
-// Pick a \"nice\" tick size based on a value range.
-function chooseStepSize(range) {
-  if (range <= 0) return 1;
-  const approx = range / 10; // aim for ~10 ticks
-  const steps = [
-    100_000,      // 100K
-    250_000,      // 250K
-    500_000,      // 500K
-    1_000_000,    // 1M
-    2_000_000,    // 2M
-    5_000_000,    // 5M
-    10_000_000,   // 10M
-    20_000_000,   // 20M
-    50_000_000,   // 50M
-    100_000_000   // 100M
-  ];
-  for (const s of steps) {
-    if (approx <= s) return s;
-  }
-  return steps[steps.length - 1];
-}
+async function loadData() {
 
-const ITEMS = [
-  { id: 20997, name: "Twisted Bow" },
-  { id: 6731, name: "Seers Ring" },
-  { id: 19547, name: "Necklace of Anguish" },
-  { id: 21902, name: "Dragon Crossbow" }
-];
-
-async function buildChartsForItem(item) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/prices?item_id=eq.${item.id}&order=timestamp.asc`,
+    `${SUPABASE_URL}/rest/v1/prices?item_id=eq.${ITEM_ID}&order=timestamp.asc`,
     {
       headers: {
         apikey: SUPABASE_ANON_KEY,
@@ -80,138 +74,67 @@ async function buildChartsForItem(item) {
   );
 
   const data = await res.json();
-  if (!Array.isArray(data) || data.length === 0) return;
 
-  const root = document.getElementById("charts-root");
+  if (!data || data.length === 0) {
+    document.getElementById("stats").innerHTML = "<div class=\"stat\">No data yet.</div>";
+    return;
+  }
 
-  const title = document.createElement("h3");
-  title.textContent = item.name;
-  root.appendChild(title);
+  const timestamps = data.map(x => new Date(x.timestamp * 1000).toLocaleTimeString());
+  const prices = data.map(x => x.mid_price);
+  const spreads = data.map(x => x.spread);
+  const volumes = data.map(x => x.volume ?? 0);
 
-  const priceWrap = document.createElement("div");
-  priceWrap.className = "chart-wrap";
-  const priceCanvas = document.createElement("canvas");
-  priceWrap.appendChild(priceCanvas);
-  root.appendChild(priceWrap);
+  const latest = data[data.length - 1];
 
-  const hourlyWrap = document.createElement("div");
-  hourlyWrap.className = "chart-wrap";
-  const hourlyCanvas = document.createElement("canvas");
-  hourlyWrap.appendChild(hourlyCanvas);
-  root.appendChild(hourlyWrap);
+  document.getElementById("stats").innerHTML = `
+    <div class="stat">Price: ${latest.mid_price}</div>
+    <div class="stat">Spread: ${latest.spread}</div>
+    <div class="stat">Volume: ${latest.volume ?? 0}</div>
+  `;
 
-  const labels = data.map(d =>
-    new Date(d.timestamp * 1000).toLocaleTimeString()
-  );
-  const prices = data.map(d => d.mid_price);
+  createChart("priceChart", timestamps, prices, "Price", "rgb(0,200,255)");
+  createChart("spreadChart", timestamps, spreads, "Spread", "rgb(255,200,0)");
+  createChart("volumeChart", timestamps, volumes, "Volume", "rgb(0,255,100)");
 
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-  const priceRange = maxPrice - minPrice;
-  const priceStep = chooseStepSize(priceRange);
-
-  // Main price chart with dynamic intervals on Y-axis
-  new Chart(priceCanvas, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label: `${item.name} Price`,
-        data: prices,
-        borderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      elements: {
-        point: {
-          radius: 0,
-          hitRadius: 6,
-          hoverRadius: 4
-        }
-      },
-      scales: {
-        x: {
-          ticks: {
-            autoSkip: false,
-            callback: function (value, index) {
-              const STEP = 36; // every ~3 hours (data every 5 minutes)
-              return index % STEP === 0 ? labels[index] : "";
-            }
-          }
-        },
-        y: {
-          ticks: {
-            stepSize: priceStep,
-            callback: (value) => formatPrice(value)
-          }
-        }
-      }
-    }
-  });
-
-  // Profit / loss from first price over time
-  const basePrice = prices[0];
-  const diffSeries = prices.map(p => p - basePrice);
-  const diffMin = Math.min(...diffSeries, 0);
-  const diffMax = Math.max(...diffSeries, 0);
-  const diffRange = diffMax - diffMin;
-  const diffStep = chooseStepSize(diffRange);
-
-  new Chart(hourlyCanvas, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label: `${item.name} profit / loss from start`,
-        data: diffSeries,
-        borderWidth: 2,
-        borderColor: "#ff9800"
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      elements: {
-        point: {
-          radius: 0,
-          hitRadius: 6,
-          hoverRadius: 4
-        }
-      },
-      scales: {
-        x: {
-          ticks: {
-            autoSkip: false,
-            callback: function (value, index) {
-              const STEP = 36; // every ~3 hours
-              return index % STEP === 0 ? labels[index] : "";
-            }
-          }
-        },
-        y: {
-          ticks: {
-            stepSize: diffStep,
-            callback: (value) => formatPrice(value)
-          }
-        }
-      }
-    }
-  });
 }
 
-async function loadData() {
-  for (const item of ITEMS) {
-    try {
-      await buildChartsForItem(item);
-    } catch (e) {
-      console.error("Failed to build charts for", item.name, e);
-    }
+function createChart(id, labels, data, label, color) {
+
+  if (charts[id]) {
+    charts[id].destroy();
+    charts[id] = null;
   }
+
+  charts[id] = new Chart(document.getElementById(id), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data,
+        borderColor: color,
+        tension: 0.1
+      }]
+    },
+    options: {
+      scales: {
+        x: { ticks: { color: "white" }},
+        y: { ticks: { color: "white" }}
+      },
+      plugins: {
+        legend: {
+          labels: { color: "white" }
+        }
+      }
+    }
+  });
+
 }
 
 loadData();
+
+setInterval(loadData, 300000);
 
 </script>
 
