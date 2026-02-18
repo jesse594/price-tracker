@@ -20,8 +20,8 @@
 
     .chart-container {
       width: 100%;
-      max-width: 500px;
-      height: 250px;
+      max-width: 1000px;
+      height: 500px;
     }
 
     .chart-container canvas {
@@ -170,6 +170,11 @@ function createChart(id, dataArray, valueKey, label, color) {
       maintainAspectRatio: false,
       scales: {
         x: {
+          grid: {
+            display: true,
+            color: "rgba(255,255,255,0.12)",
+            borderDash: [4, 4]
+          },
           ticks: {
             color: "white",
             maxTicksLimit: 20,
@@ -177,6 +182,11 @@ function createChart(id, dataArray, valueKey, label, color) {
           }
         },
         y: {
+          grid: {
+            display: true,
+            color: "rgba(255,255,255,0.12)",
+            borderDash: [4, 4]
+          },
           ticks: {
             color: "white",
             stepSize: stepSize
