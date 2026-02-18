@@ -125,6 +125,27 @@
   <div class="chart-container"><canvas id="mppProfitChart"></canvas></div>
 </div>
 
+<div class="card">
+  <h2>Across items: spread, volume &amp; price</h2>
+  <p class="key">Each point is one price snapshot. See if spread or volume relates to price level across your tracked items.</p>
+  <p id="crossItemStatus" class="stat" style="margin-bottom:12px;"></p>
+  <div class="chart-container"><canvas id="spreadVsPriceChart"></canvas></div>
+  <p class="axis-note">X = spread (gp), Y = mid price (gp).</p>
+  <div class="chart-container"><canvas id="volumeVsPriceChart"></canvas></div>
+  <p class="axis-note">X = volume (trades), Y = mid price (gp).</p>
+  <table id="crossItemSummaryTable" class="trades-table" style="max-width:600px;margin-top:12px;">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Avg spread</th>
+        <th>Avg volume</th>
+        <th>Avg price</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
 <script>
 
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
@@ -132,6 +153,16 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const ITEM_ID = 6731;
 const charts = {};
+
+const ITEMS_TO_ANALYSE = [6731, 19547, 21902, 20997];
+const ITEM_NAMES = {
+  6731: "Seers ring",
+  19547: "Necklace of anguish",
+  21902: "Dragon crossbow",
+  20997: "Twisted bow"
+};
+const CROSS_ITEM_COLORS = ["rgb(255,200,0)", "rgb(255,100,150)", "rgb(0,200,255)", "rgb(0,255,150)"];
+const crossItemCharts = {};
 
 const STEP_EVERY_3_HOURS = 36;
 
@@ -357,10 +388,120 @@ async function loadOntology() {
 
 }
 
+async function loadCrossItemAnalysis() {
+  const statusEl = document.getElementById("crossItemStatus");
+  if (statusEl) statusEl.textContent = "Loading…";
+  try {
+    const ids = ITEMS_TO_ANALYSE.join(",");
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/prices?item_id=in.(${ids})&order=timestamp.asc`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Range: "0-99999"
+        }
+      }
+    );
+    if (!res.ok) {
+      if (statusEl) statusEl.textContent = "Error: " + res.status;
+      return;
+    }
+    const data = await res.json();
+    if (!data || data.length === 0) {
+      if (statusEl) statusEl.textContent = "No data for multiple items yet.";
+      return;
+    }
+    if (statusEl) statusEl.textContent = "";
+
+    const byItem = {};
+    ITEMS_TO_ANALYSE.forEach(id => { byItem[id] = []; });
+    data.forEach(row => {
+      if (byItem[row.item_id]) byItem[row.item_id].push(row);
+    });
+
+    const scatterOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          grid: { display: true, color: "rgba(255,255,255,0.12)", borderDash: [4, 4] },
+          ticks: { color: "white" }
+        },
+        y: {
+          grid: { display: true, color: "rgba(255,255,255,0.12)", borderDash: [4, 4] },
+          ticks: { color: "white" }
+        }
+      },
+      plugins: { legend: { labels: { color: "white" } } }
+    };
+
+    const spreadVsPriceDatasets = ITEMS_TO_ANALYSE.map((id, i) => ({
+      label: ITEM_NAMES[id] || "Item " + id,
+      data: (byItem[id] || []).map(d => ({ x: d.spread ?? 0, y: d.mid_price ?? 0 })),
+      backgroundColor: CROSS_ITEM_COLORS[i % CROSS_ITEM_COLORS.length],
+      borderColor: CROSS_ITEM_COLORS[i % CROSS_ITEM_COLORS.length],
+      pointRadius: 4,
+      pointHoverRadius: 6
+    }));
+
+    const volumeVsPriceDatasets = ITEMS_TO_ANALYSE.map((id, i) => ({
+      label: ITEM_NAMES[id] || "Item " + id,
+      data: (byItem[id] || []).map(d => ({ x: d.volume ?? 0, y: d.mid_price ?? 0 })),
+      backgroundColor: CROSS_ITEM_COLORS[i % CROSS_ITEM_COLORS.length],
+      borderColor: CROSS_ITEM_COLORS[i % CROSS_ITEM_COLORS.length],
+      pointRadius: 4,
+      pointHoverRadius: 6
+    }));
+
+    if (crossItemCharts.spreadVsPrice) {
+      crossItemCharts.spreadVsPrice.destroy();
+      crossItemCharts.spreadVsPrice = null;
+    }
+    if (crossItemCharts.volumeVsPrice) {
+      crossItemCharts.volumeVsPrice.destroy();
+      crossItemCharts.volumeVsPrice = null;
+    }
+
+    const ctx1 = document.getElementById("spreadVsPriceChart");
+    const ctx2 = document.getElementById("volumeVsPriceChart");
+    if (ctx1) {
+      crossItemCharts.spreadVsPrice = new Chart(ctx1, {
+        type: "scatter",
+        data: { datasets: spreadVsPriceDatasets },
+        options: scatterOptions
+      });
+    }
+    if (ctx2) {
+      crossItemCharts.volumeVsPrice = new Chart(ctx2, {
+        type: "scatter",
+        data: { datasets: volumeVsPriceDatasets },
+        options: scatterOptions
+      });
+    }
+
+    const tbody = document.querySelector("#crossItemSummaryTable tbody");
+    if (tbody) {
+      tbody.innerHTML = ITEMS_TO_ANALYSE.map(id => {
+        const rows = byItem[id] || [];
+        const n = rows.length;
+        const avgSpread = n ? Math.round(rows.reduce((s, d) => s + (d.spread ?? 0), 0) / n) : 0;
+        const avgVol = n ? Math.round(rows.reduce((s, d) => s + (d.volume ?? 0), 0) / n) : 0;
+        const avgPrice = n ? Math.round(rows.reduce((s, d) => s + (d.mid_price ?? 0), 0) / n) : 0;
+        return `<tr><td>${ITEM_NAMES[id] || id}</td><td>${avgSpread.toLocaleString()}</td><td>${avgVol.toLocaleString()}</td><td>${avgPrice.toLocaleString()}</td></tr>`;
+      }).join("");
+    }
+  } catch (e) {
+    if (statusEl) statusEl.textContent = "Error: " + e.message;
+  }
+}
+
 loadData();
 loadOntology();
+loadCrossItemAnalysis();
 
 setInterval(loadData, 300000);
+setInterval(loadCrossItemAnalysis, 300000);
 
 </script>
 <script src="dashboard.js"></script>
