@@ -116,6 +116,14 @@
   </table>
 </div>
 
+<div class="card">
+  <h2>Max profit points (dashboard)</h2>
+  <p class="key">Spread, volume and profit from <code>max_profit_points</code>.</p>
+  <div class="chart-container"><canvas id="mppSpreadChart"></canvas></div>
+  <div class="chart-container"><canvas id="mppVolumeChart"></canvas></div>
+  <div class="chart-container"><canvas id="mppProfitChart"></canvas></div>
+</div>
+
 <script>
 
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
@@ -352,6 +360,6 @@ loadOntology();
 setInterval(loadData, 300000);
 
 </script>
-
+<script src="dashboard.js"></script>
 </body>
 </html>
