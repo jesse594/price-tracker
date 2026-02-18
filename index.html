@@ -18,7 +18,13 @@
       border-radius: 8px;
     }
 
-    canvas {
+    .chart-container {
+      width: 100%;
+      max-width: 500px;
+      height: 250px;
+    }
+
+    .chart-container canvas {
       background: #121821;
       border-radius: 8px;
       padding: 10px;
@@ -28,6 +34,19 @@
       font-size: 18px;
       margin: 5px 0;
     }
+
+    .key {
+      font-size: 13px;
+      color: #8b9cad;
+      margin-top: 6px;
+      margin-bottom: 0;
+    }
+
+    .axis-note {
+      font-size: 12px;
+      color: #6b7c8d;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
@@ -36,21 +55,25 @@
 
 <div class="card">
   <div id="stats"></div>
+  <p class="axis-note">All charts: data captured every 5 min; x-axis labels every 3 hours.</p>
 </div>
 
 <div class="card">
   <h3>Price</h3>
-  <canvas id="priceChart"></canvas>
+  <p class="key">Mid price (high + low) ÷ 2, in gp.</p>
+  <div class="chart-container"><canvas id="priceChart"></canvas></div>
 </div>
 
 <div class="card">
   <h3>Spread</h3>
-  <canvas id="spreadChart"></canvas>
+  <p class="key">Spread = high price − low price at each time (gp). Wider spread = more gap between buy and sell.</p>
+  <div class="chart-container"><canvas id="spreadChart"></canvas></div>
 </div>
 
 <div class="card">
   <h3>Volume</h3>
-  <canvas id="volumeChart"></canvas>
+  <p class="key">Number of trades (pieces) in the period.</p>
+  <div class="chart-container"><canvas id="volumeChart"></canvas></div>
 </div>
 
 <script>
@@ -60,6 +83,26 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const ITEM_ID = 21902;
 const charts = {};
+
+const STEP_EVERY_3_HOURS = 36;
+
+function formatAxisLabel(unixSec) {
+  const d = new Date(unixSec * 1000);
+  const day = d.getDate();
+  const month = d.toLocaleString("en", { month: "short" });
+  const h = d.getHours();
+  return day + " " + month + " " + String(h).padStart(2, "0") + ":00";
+}
+
+function chooseStepSize(range) {
+  if (range <= 0) return 1;
+  const approx = range / 8;
+  const steps = [1, 2, 5, 10, 20, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+  for (const s of steps) {
+    if (approx <= s) return s;
+  }
+  return steps[steps.length - 1];
+}
 
 async function loadData() {
 
@@ -80,11 +123,6 @@ async function loadData() {
     return;
   }
 
-  const timestamps = data.map(x => new Date(x.timestamp * 1000).toLocaleTimeString());
-  const prices = data.map(x => x.mid_price);
-  const spreads = data.map(x => x.spread);
-  const volumes = data.map(x => x.volume ?? 0);
-
   const latest = data[data.length - 1];
 
   document.getElementById("stats").innerHTML = `
@@ -93,18 +131,28 @@ async function loadData() {
     <div class="stat">Volume: ${latest.volume ?? 0}</div>
   `;
 
-  createChart("priceChart", timestamps, prices, "Price", "rgb(0,200,255)");
-  createChart("spreadChart", timestamps, spreads, "Spread", "rgb(255,200,0)");
-  createChart("volumeChart", timestamps, volumes, "Volume", "rgb(0,255,100)");
+  createChart("priceChart", data, "mid_price", "Price", "rgb(0,200,255)");
+  createChart("spreadChart", data, "spread", "Spread", "rgb(255,200,0)");
+  createChart("volumeChart", data, "volume", "Volume", "rgb(0,255,100)");
 
 }
 
-function createChart(id, labels, data, label, color) {
+function createChart(id, dataArray, valueKey, label, color) {
 
   if (charts[id]) {
     charts[id].destroy();
     charts[id] = null;
   }
+
+  const values = dataArray.map(d => d[valueKey] ?? 0);
+  const labels = dataArray.map((d, i) =>
+    i % STEP_EVERY_3_HOURS === 0 ? formatAxisLabel(d.timestamp) : ""
+  );
+
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const range = maxVal - minVal || 1;
+  const stepSize = chooseStepSize(range);
 
   charts[id] = new Chart(document.getElementById(id), {
     type: "line",
@@ -112,15 +160,30 @@ function createChart(id, labels, data, label, color) {
       labels,
       datasets: [{
         label,
-        data,
+        data: values,
         borderColor: color,
         tension: 0.1
       }]
     },
     options: {
+      responsive: true,
+      maintainAspectRatio: false,
       scales: {
-        x: { ticks: { color: "white" }},
-        y: { ticks: { color: "white" }}
+        x: {
+          ticks: {
+            color: "white",
+            maxTicksLimit: 20,
+            callback: function(_, i) { return labels[i] || ""; }
+          }
+        },
+        y: {
+          ticks: {
+            color: "white",
+            stepSize: stepSize
+          },
+          min: Math.floor(minVal / stepSize) * stepSize,
+          max: Math.ceil(maxVal / stepSize) * stepSize
+        }
       },
       plugins: {
         legend: {
