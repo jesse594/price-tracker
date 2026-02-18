@@ -1,509 +1,120 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Seers Ring Ontology Dashboard</title>
+  <title>Price vs Expected Price</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body {
-      font-family: Arial;
-      background: #0b0f14;
-      color: white;
-      padding: 20px;
-    }
-
-    .card {
-      background: #121821;
-      padding: 15px;
-      margin-bottom: 20px;
-      border-radius: 8px;
-    }
-
-    .chart-container {
-      width: 100%;
-      max-width: 1000px;
-      height: 500px;
-    }
-
-    .chart-container canvas {
-      background: #121821;
-      border-radius: 8px;
-      padding: 10px;
-    }
-
-    .stat {
-      font-size: 18px;
-      margin: 5px 0;
-    }
-
-    .key {
-      font-size: 13px;
-      color: #8b9cad;
-      margin-top: 6px;
-      margin-bottom: 0;
-    }
-
-    .axis-note {
-      font-size: 12px;
-      color: #6b7c8d;
-      margin-top: 8px;
-    }
-
-    .trades-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-    }
-    .trades-table th,
-    .trades-table td {
-      padding: 8px 12px;
-      text-align: left;
-      border: 1px solid #2a3544;
-      color: white;
-    }
-    .trades-table th {
-      background: #1a2332;
-    }
-    .trades-table tbody tr:nth-child(even) {
-      background: #161e2a;
-    }
-  </style>
 </head>
 <body>
 
-<h1>Seers Ring Ontology Dashboard</h1>
+<h2>Seers Ring Price vs Expected Price</h2>
 
-<div class="card">
-  <div id="stats"></div>
-  <p class="axis-note">All charts: data captured every 5 min; x-axis labels every 3 hours.</p>
-</div>
-
-<div class="card">
-  <h3>Price</h3>
-  <p class="key">Mid price (high + low) ÷ 2, in gp.</p>
-  <div class="chart-container"><canvas id="priceChart"></canvas></div>
-</div>
-
-<div class="card">
-  <h3>Spread</h3>
-  <p class="key">Spread = high price − low price at each time (gp). Wider spread = more gap between buy and sell.</p>
-  <div class="chart-container"><canvas id="spreadChart"></canvas></div>
-</div>
-
-<div class="card">
-  <h3>Volume</h3>
-  <p class="key">Number of trades (pieces) in the period.</p>
-  <div class="chart-container"><canvas id="volumeChart"></canvas></div>
-</div>
-
-<div class="card">
-  <h2>Ontology Performance</h2>
-  <div>
-    <p class="stat">Total Profit: <span id="totalProfit">0</span> gp</p>
-    <p class="stat">Win Rate: <span id="winRate">0</span>%</p>
-    <p class="stat">Total Trades: <span id="totalTrades">0</span></p>
-  </div>
-  <div class="chart-container"><canvas id="equityChart"></canvas></div>
-  <table border="1" id="tradesTable" class="trades-table">
-    <thead>
-      <tr>
-        <th>Buy Time</th>
-        <th>Buy Price</th>
-        <th>Sell Price</th>
-        <th>Profit</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-</div>
-
-<div class="card">
-  <h2>Max profit points (dashboard)</h2>
-  <p class="key">Seers ring: spread, volume and profit from <code>max_profit_points</code>.</p>
-  <p id="mppStatus" class="stat" style="margin-bottom:12px;"></p>
-  <div class="chart-container"><canvas id="mppSpreadChart"></canvas></div>
-  <div class="chart-container"><canvas id="mppVolumeChart"></canvas></div>
-  <div class="chart-container"><canvas id="mppProfitChart"></canvas></div>
-</div>
-
-<div class="card">
-  <h2>Across items: spread, volume &amp; price</h2>
-  <p class="key">Each point is one price snapshot. See if spread or volume relates to price level across your tracked items.</p>
-  <p id="crossItemStatus" class="stat" style="margin-bottom:12px;"></p>
-  <div class="chart-container"><canvas id="spreadVsPriceChart"></canvas></div>
-  <p class="axis-note">X = spread (gp), Y = mid price (gp).</p>
-  <div class="chart-container"><canvas id="volumeVsPriceChart"></canvas></div>
-  <p class="axis-note">X = volume (trades), Y = mid price (gp).</p>
-  <table id="crossItemSummaryTable" class="trades-table" style="max-width:600px;margin-top:12px;">
-    <thead>
-      <tr>
-        <th>Item</th>
-        <th>Avg spread</th>
-        <th>Avg volume</th>
-        <th>Avg price</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<div style="max-width:900px;height:400px;">
+  <canvas id="chart"></canvas>
 </div>
 
 <script>
 
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
 
-const ITEM_ID = 6731;
-const charts = {};
+const FIVE_MIN = 300;
 
-const ITEMS_TO_ANALYSE = [6731, 19547, 21902, 20997];
-const ITEM_NAMES = {
-  6731: "Seers ring",
-  19547: "Necklace of anguish",
-  21902: "Dragon crossbow",
-  20997: "Twisted bow"
-};
-const CROSS_ITEM_COLORS = ["rgb(255,200,0)", "rgb(255,100,150)", "rgb(0,200,255)", "rgb(0,255,150)"];
-const crossItemCharts = {};
-
-const STEP_EVERY_3_HOURS = 36;
-
-function formatAxisLabel(unixSec) {
-  const d = new Date(unixSec * 1000);
-  const day = d.getDate();
-  const month = d.toLocaleString("en", { month: "short" });
-  const h = d.getHours();
-  return day + " " + month + " " + String(h).padStart(2, "0") + ":00";
-}
-
-function chooseStepSize(range) {
-  if (range <= 0) return 1;
-  const approx = range / 8;
-  const steps = [1, 2, 5, 10, 20, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
-  for (const s of steps) {
-    if (approx <= s) return s;
-  }
-  return steps[steps.length - 1];
+function showError(msg) {
+  const p = document.createElement("p");
+  p.style.color = "#f88";
+  p.textContent = msg;
+  document.body.appendChild(p);
 }
 
 async function loadData() {
-
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/prices?item_id=eq.${ITEM_ID}&order=timestamp.asc`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        Range: "0-99999"
-      }
-    }
-  );
-
-  const data = await res.json();
-
-  if (!data || data.length === 0) {
-    document.getElementById("stats").innerHTML = "<div class=\"stat\">No data yet.</div>";
-    return;
-  }
-
-  const latest = data[data.length - 1];
-
-  document.getElementById("stats").innerHTML = `
-    <div class="stat">Price: ${latest.mid_price}</div>
-    <div class="stat">Spread: ${latest.spread}</div>
-    <div class="stat">Volume: ${latest.volume ?? 0}</div>
-  `;
-
-  createChart("priceChart", data, "mid_price", "Price", "rgb(0,200,255)");
-  createChart("spreadChart", data, "spread", "Spread", "rgb(255,200,0)");
-  createChart("volumeChart", data, "volume", "Volume", "rgb(0,255,100)");
-
-}
-
-function createChart(id, dataArray, valueKey, label, color) {
-
-  if (charts[id]) {
-    charts[id].destroy();
-    charts[id] = null;
-  }
-
-  const values = dataArray.map(d => d[valueKey] ?? 0);
-  const labels = dataArray.map((d, i) =>
-    i % STEP_EVERY_3_HOURS === 0 ? formatAxisLabel(d.timestamp) : ""
-  );
-
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
-  const range = maxVal - minVal || 1;
-  const stepSize = chooseStepSize(range);
-
-  charts[id] = new Chart(document.getElementById(id), {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label,
-        data: values,
-        borderColor: color,
-        tension: 0.1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          grid: {
-            display: true,
-            color: "rgba(255,255,255,0.12)",
-            borderDash: [4, 4]
-          },
-          ticks: {
-            color: "white",
-            maxTicksLimit: 20,
-            callback: function(_, i) { return labels[i] || ""; }
-          }
-        },
-        y: {
-          grid: {
-            display: true,
-            color: "rgba(255,255,255,0.12)",
-            borderDash: [4, 4]
-          },
-          ticks: {
-            color: "white",
-            stepSize: stepSize
-          },
-          min: Math.floor(minVal / stepSize) * stepSize,
-          max: Math.ceil(maxVal / stepSize) * stepSize
-        }
-      },
-      plugins: {
-        legend: {
-          labels: { color: "white" }
-        }
-      }
-    }
-  });
-
-}
-
-async function loadOntology() {
-
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/ontology_flips?select=*&order=buy_time.asc`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        Range: "0-99999"
-      }
-    }
-  );
-
-  const trades = await res.json();
-
-  if (!trades || !trades.length) return;
-
-  let totalProfit = 0;
-  let wins = 0;
-  let equity = 0;
-
-  const equityData = [];
-  const labels = [];
-
-  const tableBody = document.querySelector("#tradesTable tbody");
-  tableBody.innerHTML = "";
-
-  let completedCount = 0;
-
-  trades.forEach(trade => {
-
-    if (!trade.sell_price) return;
-
-    completedCount++;
-    const profit = trade.sell_price - trade.buy_price;
-
-    totalProfit += profit;
-    equity += profit;
-
-    if (profit > 0) wins++;
-
-    equityData.push(equity);
-    labels.push(new Date(trade.buy_time).toLocaleTimeString());
-
-    const row = `
-      <tr>
-        <td>${new Date(trade.buy_time).toLocaleString()}</td>
-        <td>${trade.buy_price}</td>
-        <td>${trade.sell_price}</td>
-        <td>${profit}</td>
-      </tr>
-    `;
-
-    tableBody.innerHTML += row;
-
-  });
-
-  if (completedCount === 0) return;
-
-  const winRate = (wins / completedCount) * 100;
-
-  document.getElementById("totalProfit").textContent = totalProfit.toLocaleString();
-  document.getElementById("winRate").textContent = winRate.toFixed(1);
-  document.getElementById("totalTrades").textContent = completedCount;
-
-  if (charts.equityChart) {
-    charts.equityChart.destroy();
-    charts.equityChart = null;
-  }
-
-  charts.equityChart = new Chart(document.getElementById("equityChart"), {
-    type: "line",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "Equity Curve",
-        data: equityData,
-        borderColor: "rgb(0,255,150)",
-        tension: 0.1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          grid: { display: true, color: "rgba(255,255,255,0.12)", borderDash: [4, 4] },
-          ticks: { color: "white" }
-        },
-        y: {
-          grid: { display: true, color: "rgba(255,255,255,0.12)", borderDash: [4, 4] },
-          ticks: { color: "white" }
-        }
-      },
-      plugins: {
-        legend: { labels: { color: "white" } }
-      }
-    }
-  });
-
-}
-
-async function loadCrossItemAnalysis() {
-  const statusEl = document.getElementById("crossItemStatus");
-  if (statusEl) statusEl.textContent = "Loading…";
   try {
-    const ids = ITEMS_TO_ANALYSE.join(",");
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/prices?item_id=in.(${ids})&order=timestamp.asc`,
+    const priceRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/prices?item_id=eq.6731&order=timestamp.asc`,
       {
         headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
           Range: "0-99999"
         }
       }
     );
-    if (!res.ok) {
-      if (statusEl) statusEl.textContent = "Error: " + res.status;
+    if (!priceRes.ok) {
+      showError("Prices: " + priceRes.status + " " + (await priceRes.text()).slice(0, 100));
       return;
     }
-    const data = await res.json();
-    if (!data || data.length === 0) {
-      if (statusEl) statusEl.textContent = "No data for multiple items yet.";
+    const prices = await priceRes.json();
+    if (!Array.isArray(prices) || prices.length === 0) {
+      showError("No price data yet.");
       return;
     }
-    if (statusEl) statusEl.textContent = "";
 
-    const byItem = {};
-    ITEMS_TO_ANALYSE.forEach(id => { byItem[id] = []; });
-    data.forEach(row => {
-      if (byItem[row.item_id]) byItem[row.item_id].push(row);
+    let expected = [];
+    try {
+      const expectedRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/expected_prices?item_id=eq.6731&order=created_at.asc`,
+        {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            Range: "0-99999"
+          }
+        }
+      );
+      if (expectedRes.ok) {
+        const data = await expectedRes.json();
+        expected = Array.isArray(data) ? data : [];
+      }
+    } catch (_) {}
+
+    const labels = prices.map(p => new Date(p.timestamp * 1000).toLocaleTimeString());
+    const realPrice = prices.map(p => p.mid_price);
+
+    const expectedMap = {};
+    expected.forEach(e => {
+      if (e.expected_price == null) return;
+      const ts = e.timestamp != null ? e.timestamp : (e.created_at ? Math.floor(new Date(e.created_at).getTime() / 1000) : null);
+      if (ts == null || isNaN(ts)) return;
+      const bucket = Math.floor(ts / FIVE_MIN) * FIVE_MIN;
+      expectedMap[bucket] = e.expected_price;
     });
 
-    const scatterOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          grid: { display: true, color: "rgba(255,255,255,0.12)", borderDash: [4, 4] },
-          ticks: { color: "white" }
-        },
-        y: {
-          grid: { display: true, color: "rgba(255,255,255,0.12)", borderDash: [4, 4] },
-          ticks: { color: "white" }
-        }
-      },
-      plugins: { legend: { labels: { color: "white" } } }
-    };
+    const expectedPrice = prices.map(p => {
+      const bucket = Math.floor(p.timestamp / FIVE_MIN) * FIVE_MIN;
+      return expectedMap[bucket] ?? null;
+    });
 
-    const spreadVsPriceDatasets = ITEMS_TO_ANALYSE.map((id, i) => ({
-      label: ITEM_NAMES[id] || "Item " + id,
-      data: (byItem[id] || []).map(d => ({ x: d.spread ?? 0, y: d.mid_price ?? 0 })),
-      backgroundColor: CROSS_ITEM_COLORS[i % CROSS_ITEM_COLORS.length],
-      borderColor: CROSS_ITEM_COLORS[i % CROSS_ITEM_COLORS.length],
-      pointRadius: 4,
-      pointHoverRadius: 6
-    }));
-
-    const volumeVsPriceDatasets = ITEMS_TO_ANALYSE.map((id, i) => ({
-      label: ITEM_NAMES[id] || "Item " + id,
-      data: (byItem[id] || []).map(d => ({ x: d.volume ?? 0, y: d.mid_price ?? 0 })),
-      backgroundColor: CROSS_ITEM_COLORS[i % CROSS_ITEM_COLORS.length],
-      borderColor: CROSS_ITEM_COLORS[i % CROSS_ITEM_COLORS.length],
-      pointRadius: 4,
-      pointHoverRadius: 6
-    }));
-
-    if (crossItemCharts.spreadVsPrice) {
-      crossItemCharts.spreadVsPrice.destroy();
-      crossItemCharts.spreadVsPrice = null;
-    }
-    if (crossItemCharts.volumeVsPrice) {
-      crossItemCharts.volumeVsPrice.destroy();
-      crossItemCharts.volumeVsPrice = null;
-    }
-
-    const ctx1 = document.getElementById("spreadVsPriceChart");
-    const ctx2 = document.getElementById("volumeVsPriceChart");
-    if (ctx1) {
-      crossItemCharts.spreadVsPrice = new Chart(ctx1, {
-        type: "scatter",
-        data: { datasets: spreadVsPriceDatasets },
-        options: scatterOptions
-      });
-    }
-    if (ctx2) {
-      crossItemCharts.volumeVsPrice = new Chart(ctx2, {
-        type: "scatter",
-        data: { datasets: volumeVsPriceDatasets },
-        options: scatterOptions
-      });
-    }
-
-    const tbody = document.querySelector("#crossItemSummaryTable tbody");
-    if (tbody) {
-      tbody.innerHTML = ITEMS_TO_ANALYSE.map(id => {
-        const rows = byItem[id] || [];
-        const n = rows.length;
-        const avgSpread = n ? Math.round(rows.reduce((s, d) => s + (d.spread ?? 0), 0) / n) : 0;
-        const avgVol = n ? Math.round(rows.reduce((s, d) => s + (d.volume ?? 0), 0) / n) : 0;
-        const avgPrice = n ? Math.round(rows.reduce((s, d) => s + (d.mid_price ?? 0), 0) / n) : 0;
-        return `<tr><td>${ITEM_NAMES[id] || id}</td><td>${avgSpread.toLocaleString()}</td><td>${avgVol.toLocaleString()}</td><td>${avgPrice.toLocaleString()}</td></tr>`;
-      }).join("");
-    }
+    drawChart(labels, realPrice, expectedPrice);
   } catch (e) {
-    if (statusEl) statusEl.textContent = "Error: " + e.message;
+    showError("Error: " + e.message);
   }
 }
 
-loadData();
-loadOntology();
-loadCrossItemAnalysis();
+let chartInstance = null;
 
-setInterval(loadData, 300000);
-setInterval(loadCrossItemAnalysis, 300000);
+function drawChart(labels, realPrice, expectedPrice) {
+  if (chartInstance) {
+    chartInstance.destroy();
+    chartInstance = null;
+  }
+  chartInstance = new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        { label: "Real Price", data: realPrice, borderColor: "rgb(0,200,255)", tension: 0.1 },
+        { label: "Expected Price", data: expectedPrice, borderColor: "rgb(255,200,0)", tension: 0.1 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
+    }
+  });
+}
+
+loadData();
 
 </script>
-<script src="dashboard.js"></script>
+
 </body>
 </html>
