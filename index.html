@@ -1,32 +1,37 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>OSRS Trading Dashboard</title>
+  <meta charset="UTF-8">
 </head>
 
 <body style="font-family:Arial;background:#111;color:#eee;padding:20px;">
 
-<h1>OSRS Trading Dashboard</h1>
+  <h1>OSRS Trading Dashboard</h1>
 
-<table style="border-collapse:collapse;width:600px;">
-  <thead>
-    <tr style="border-bottom:1px solid #444;">
-      <th style="padding:8px;text-align:left;">Item</th>
-      <th style="padding:8px;text-align:right;">Buy Price</th>
-      <th style="padding:8px;text-align:right;">Current Price</th>
-      <th style="padding:8px;text-align:right;">Profit / Loss</th>
-      <th style="padding:8px;text-align:right;">Signal</th>
-    </tr>
-  </thead>
+  <table style="border-collapse:collapse;width:700px;">
+    <thead>
+      <tr style="border-bottom:1px solid #444;">
+        <th style="padding:8px;text-align:left;">Item</th>
+        <th style="padding:8px;text-align:right;">Buy Price</th>
+        <th style="padding:8px;text-align:right;">Current Price</th>
+        <th style="padding:8px;text-align:right;">Profit / Loss</th>
+        <th style="padding:8px;text-align:right;">Signal</th>
+      </tr>
+    </thead>
 
-  <tbody id="positions">
-    <tr>
-      <td colspan="5" style="padding:8px;color:#888;">
-        Loading...
-      </td>
-    </tr>
-  </tbody>
-</table>
+    <tbody id="positions">
+
+      <tr>
+        <td colspan="5" style="padding:8px;color:#888;">
+          Loading...
+        </td>
+      </tr>
+
+    </tbody>
+
+  </table>
 
 
 <script>
@@ -45,9 +50,10 @@ async function loadDashboard() {
 
   try {
 
-    // fetch open trades
-    const tradesRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/trades?status=eq.OPEN`,
+    // Fetch ALL trades
+    const tradesRes =
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/trades`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -57,12 +63,20 @@ async function loadDashboard() {
       }
     );
 
-    const trades =
+    const allTrades =
     await tradesRes.json();
 
 
-    // fetch live prices
-    const priceRes = await fetch(
+    // Filter open trades
+    const trades =
+    allTrades.filter(
+      t => t.status === "OPEN"
+    );
+
+
+    // Fetch live OSRS prices
+    const priceRes =
+    await fetch(
       "https://prices.runescape.wiki/api/v1/osrs/latest"
     );
 
@@ -70,19 +84,19 @@ async function loadDashboard() {
     await priceRes.json();
 
 
-    if (!Array.isArray(trades)
-        || trades.length === 0) {
+    if (trades.length === 0) {
 
       tbody.innerHTML = `
         <tr>
           <td colspan="5"
-            style="padding:8px;color:#888;">
+          style="padding:8px;color:#888;">
             No open positions
           </td>
         </tr>
       `;
 
       return;
+
     }
 
 
@@ -109,13 +123,20 @@ async function loadDashboard() {
       Math.floor(buy * 0.92);
 
 
-      let signal = "HOLD";
-      let signalColor = "orange";
+      let signal =
+      "HOLD";
+
+      let signalColor =
+      "orange";
+
 
       if (current <= stopPrice) {
 
-        signal = "SELL";
-        signalColor = "red";
+        signal =
+        "SELL";
+
+        signalColor =
+        "red";
 
       }
 
@@ -127,8 +148,9 @@ async function loadDashboard() {
 
 
       return `
+
         <tr style="
-          border-bottom:1px solid #222;
+        border-bottom:1px solid #222;
         ">
 
           <td style="padding:8px;">
@@ -136,7 +158,82 @@ async function loadDashboard() {
           </td>
 
           <td style="
-            padding:8px;
-            text-align:right;
+          padding:8px;
+          text-align:right;
           ">
             ${buy.toLocaleString()}
+          </td>
+
+          <td style="
+          padding:8px;
+          text-align:right;
+          ">
+            ${current.toLocaleString()}
+          </td>
+
+          <td style="
+          padding:8px;
+          text-align:right;
+          color:${profitColor};
+          ">
+            ${profit.toLocaleString()}
+          </td>
+
+          <td style="
+          padding:8px;
+          text-align:right;
+          ">
+
+            Stop:
+            ${stopPrice.toLocaleString()}
+            <br>
+
+            <span style="
+            color:${signalColor};
+            font-weight:bold;
+            ">
+            ${signal}
+            </span>
+
+          </td>
+
+        </tr>
+
+      `;
+
+    }).join("");
+
+  }
+
+  catch (err) {
+
+    tbody.innerHTML =
+    `
+      <tr>
+        <td colspan="5"
+        style="padding:8px;color:red;">
+          Error loading dashboard
+        </td>
+      </tr>
+    `;
+
+    console.error(err);
+
+  }
+
+}
+
+
+// Run immediately
+loadDashboard();
+
+
+// Refresh every 60 seconds
+setInterval(loadDashboard, 60000);
+
+
+</script>
+
+
+</body>
+</html>
