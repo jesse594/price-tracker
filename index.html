@@ -216,9 +216,6 @@ async function logTrade() {
         body:
         JSON.stringify({
 
-          item_id:
-          item_id,
-
           item_name:
           item_name,
 
@@ -229,10 +226,7 @@ async function logTrade() {
           price,
 
           quantity:
-          quantity,
-
-          status:
-          tradeType === "buy" ? "OPEN" : "CLOSED"
+          quantity
 
         })
 
@@ -261,8 +255,11 @@ async function logTrade() {
 
     else {
 
+      const errText =
+      await res.text();
+
       statusEl.innerText =
-      "Error";
+      "Error " + res.status + ": " + (errText.slice(0, 80) || "check Supabase");
 
       statusEl.style.color =
       "red";
@@ -271,10 +268,10 @@ async function logTrade() {
 
   }
 
-  catch {
+  catch (err) {
 
     statusEl.innerText =
-    "Error";
+    "Error: " + (err && err.message ? err.message : "network?");
 
     statusEl.style.color =
     "red";
