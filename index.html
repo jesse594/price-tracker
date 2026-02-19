@@ -8,30 +8,60 @@
 
 <body style="font-family:Arial;background:#111;color:#eee;padding:20px;">
 
-  <h1>OSRS Trading Dashboard</h1>
+<h1>OSRS Trading Dashboard</h1>
 
-  <table style="border-collapse:collapse;width:700px;">
-    <thead>
-      <tr style="border-bottom:1px solid #444;">
-        <th style="padding:8px;text-align:left;">Item</th>
-        <th style="padding:8px;text-align:right;">Buy Price</th>
-        <th style="padding:8px;text-align:right;">Current Price</th>
-        <th style="padding:8px;text-align:right;">Profit / Loss</th>
-        <th style="padding:8px;text-align:right;">Signal</th>
-      </tr>
-    </thead>
 
-    <tbody id="positions">
+<!-- CURRENT POSITIONS -->
 
-      <tr>
-        <td colspan="5" style="padding:8px;color:#888;">
-          Loading...
-        </td>
-      </tr>
+<h2>Open Positions</h2>
 
-    </tbody>
+<table style="border-collapse:collapse;width:700px;">
+  <thead>
+    <tr style="border-bottom:1px solid #444;">
+      <th style="padding:8px;text-align:left;">Item</th>
+      <th style="padding:8px;text-align:right;">Buy Price</th>
+      <th style="padding:8px;text-align:right;">Current Price</th>
+      <th style="padding:8px;text-align:right;">Profit / Loss</th>
+      <th style="padding:8px;text-align:right;">Signal</th>
+    </tr>
+  </thead>
 
-  </table>
+  <tbody id="positions">
+    <tr>
+      <td colspan="5" style="padding:8px;color:#888;">
+        Loading...
+      </td>
+    </tr>
+  </tbody>
+
+</table>
+
+
+
+<!-- BUY OPPORTUNITIES -->
+
+<h2 style="margin-top:40px;">Buy Opportunities (≤ 2M)</h2>
+
+<table style="border-collapse:collapse;width:700px;">
+  <thead>
+    <tr style="border-bottom:1px solid #444;">
+      <th style="padding:8px;text-align:left;">Item ID</th>
+      <th style="padding:8px;text-align:right;">Current Price</th>
+      <th style="padding:8px;text-align:right;">Upside %</th>
+      <th style="padding:8px;text-align:right;">Signal</th>
+    </tr>
+  </thead>
+
+  <tbody id="opportunities">
+    <tr>
+      <td colspan="4" style="padding:8px;color:#888;">
+        Scanning market...
+      </td>
+    </tr>
+  </tbody>
+
+</table>
+
 
 
 <script>
@@ -43,6 +73,9 @@ const SUPABASE_KEY =
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
 
 
+
+/* LOAD OPEN POSITIONS */
+
 async function loadDashboard() {
 
   const tbody =
@@ -50,7 +83,6 @@ async function loadDashboard() {
 
   try {
 
-    // Fetch ALL trades
     const tradesRes =
     await fetch(
       `${SUPABASE_URL}/rest/v1/trades`,
@@ -67,14 +99,12 @@ async function loadDashboard() {
     await tradesRes.json();
 
 
-    // Filter open trades
     const trades =
     allTrades.filter(
       t => t.status === "OPEN"
     );
 
 
-    // Fetch live OSRS prices
     const priceRes =
     await fetch(
       "https://prices.runescape.wiki/api/v1/osrs/latest"
@@ -149,52 +179,29 @@ async function loadDashboard() {
 
       return `
 
-        <tr style="
-        border-bottom:1px solid #222;
-        ">
+        <tr style="border-bottom:1px solid #222;">
 
           <td style="padding:8px;">
             ${trade.item_name}
           </td>
 
-          <td style="
-          padding:8px;
-          text-align:right;
-          ">
+          <td style="padding:8px;text-align:right;">
             ${buy.toLocaleString()}
           </td>
 
-          <td style="
-          padding:8px;
-          text-align:right;
-          ">
+          <td style="padding:8px;text-align:right;">
             ${current.toLocaleString()}
           </td>
 
-          <td style="
-          padding:8px;
-          text-align:right;
-          color:${profitColor};
-          ">
+          <td style="padding:8px;text-align:right;color:${profitColor};">
             ${profit.toLocaleString()}
           </td>
 
-          <td style="
-          padding:8px;
-          text-align:right;
-          ">
-
-            Stop:
-            ${stopPrice.toLocaleString()}
-            <br>
-
-            <span style="
-            color:${signalColor};
-            font-weight:bold;
-            ">
+          <td style="padding:8px;text-align:right;">
+            Stop: ${stopPrice.toLocaleString()}<br>
+            <span style="color:${signalColor};font-weight:bold;">
             ${signal}
             </span>
-
           </td>
 
         </tr>
@@ -208,28 +215,138 @@ async function loadDashboard() {
   catch (err) {
 
     tbody.innerHTML =
-    `
-      <tr>
-        <td colspan="5"
-        style="padding:8px;color:red;">
-          Error loading dashboard
-        </td>
-      </tr>
-    `;
-
-    console.error(err);
+    `<tr><td colspan="5" style="padding:8px;color:red;">
+    Error loading dashboard
+    </td></tr>`;
 
   }
 
 }
 
 
-// Run immediately
+
+
+/* LOAD BUY OPPORTUNITIES */
+
+async function loadOpportunities() {
+
+  const tbody =
+  document.getElementById("opportunities");
+
+  try {
+
+    const latestRes =
+    await fetch(
+      "https://prices.runescape.wiki/api/v1/osrs/latest"
+    );
+
+    const latest =
+    await latestRes.json();
+
+
+    const fiveMinRes =
+    await fetch(
+      "https://prices.runescape.wiki/api/v1/osrs/5m"
+    );
+
+    const fiveMin =
+    await fiveMinRes.json();
+
+
+    const candidates =
+    Object.entries(latest.data)
+    .map(([itemId, price]) => {
+
+      const current =
+      Math.floor(
+        (price.high + price.low) / 2
+      );
+
+      if (current > 2000000)
+        return null;
+
+      const history =
+      fiveMin.data[itemId];
+
+      if (!history)
+        return null;
+
+      const avgHigh =
+      history.avgHighPrice;
+
+      if (!avgHigh)
+        return null;
+
+      const upside =
+      (avgHigh - current) / current;
+
+      return {
+        itemId,
+        current,
+        upside
+      };
+
+    })
+    .filter(x => x && x.upside > 0.05)
+    .sort((a,b) => b.upside - a.upside)
+    .slice(0,10);
+
+
+
+    tbody.innerHTML =
+    candidates.map(item => {
+
+      const upsidePercent =
+      (item.upside * 100).toFixed(1);
+
+      return `
+
+        <tr style="border-bottom:1px solid #222;">
+
+          <td style="padding:8px;">
+            ${item.itemId}
+          </td>
+
+          <td style="padding:8px;text-align:right;">
+            ${item.current.toLocaleString()}
+          </td>
+
+          <td style="padding:8px;text-align:right;color:limegreen;">
+            ${upsidePercent}%
+          </td>
+
+          <td style="padding:8px;text-align:right;color:cyan;font-weight:bold;">
+            BUY
+          </td>
+
+        </tr>
+
+      `;
+
+    }).join("");
+
+  }
+
+  catch (err) {
+
+    tbody.innerHTML =
+    `<tr><td colspan="4" style="padding:8px;color:red;">
+    Error scanning market
+    </td></tr>`;
+
+  }
+
+}
+
+
+
+/* RUN */
+
 loadDashboard();
+loadOpportunities();
 
-
-// Refresh every 60 seconds
 setInterval(loadDashboard, 60000);
+setInterval(loadOpportunities, 60000);
 
 
 </script>
