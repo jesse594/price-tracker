@@ -22,7 +22,7 @@
 
 <h2>Seers ring: actual price vs expected (calculated) price</h2>
 <p style="color:#888;font-size:14px;">Actual = mid price from <code>prices</code>. Expected = calculated from <code>price_models</code> (stored in <code>expected_prices</code>).</p>
-<div style="max-width:900px;height:400px;">
+<div style="max-width:1000px;height:420px;">
   <canvas id="chart"></canvas>
 </div>
 
@@ -35,12 +35,23 @@ const FIVE_MIN = 300;
 const FIFTEEN_MIN = 900;
 const THIRTY_MIN = 1800;
 
+const TWO_DAYS = 2 * 24 * 3600;
+
 function formatFifteenMin(ts) {
   const rounded = Math.floor(ts / FIFTEEN_MIN) * FIFTEEN_MIN;
   const d = new Date(rounded * 1000);
   const h = d.getHours();
   const m = d.getMinutes();
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
+function formatLabelWithDate(ts) {
+  const d = new Date(ts * 1000);
+  const day = d.getDate();
+  const month = d.toLocaleString("en-GB", { month: "short" });
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return day + " " + month + " " + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
 function showError(msg) {
@@ -66,11 +77,14 @@ async function loadData() {
       showError("Prices: " + priceRes.status + " " + (await priceRes.text()).slice(0, 100));
       return;
     }
-    const prices = await priceRes.json();
+    let prices = await priceRes.json();
     if (!Array.isArray(prices) || prices.length === 0) {
       showError("No price data yet.");
       return;
     }
+    const now = Math.floor(Date.now() / 1000);
+    const cutoff = now - TWO_DAYS;
+    prices = prices.filter(p => p.timestamp >= cutoff);
 
     let model = null;
     try {
@@ -95,7 +109,8 @@ async function loadData() {
     }
 
     const realPrice = indices.map(i => prices[i].mid_price);
-    const labels = indices.map(i => formatFifteenMin(prices[i].timestamp));
+    const timestamps = indices.map(i => prices[i].timestamp);
+    const labels = timestamps.map(ts => formatLabelWithDate(ts));
 
     let expectedPrice = indices.map(() => null);
     if (model && typeof model.intercept === "number") {
@@ -160,7 +175,8 @@ function drawChart(labels, realPrice, expectedPrice) {
       scales: {
         x: {
           ticks: {
-            maxTicksLimit: 20,
+            maxTicksLimit: 14,
+            autoSkip: true,
             callback: function(_, i) { return this.chart.data.labels[i] || ""; }
           }
         }
