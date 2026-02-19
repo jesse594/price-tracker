@@ -26,6 +26,12 @@
   <canvas id="chart"></canvas>
 </div>
 
+<h2>Seers ring: Bayesian expected price (updates with each observation)</h2>
+<p style="color:#888;font-size:14px;">Same data; expected = Bayesian posterior mean (normal–normal update). No retrain — it updates as each new price arrives.</p>
+<div style="max-width:1000px;height:420px;">
+  <canvas id="chartBayesian"></canvas>
+</div>
+
 <script>
 
 const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
@@ -52,6 +58,30 @@ function formatLabelWithDate(ts) {
   const h = d.getHours();
   const m = d.getMinutes();
   return day + " " + month + " " + String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
+// Sequential Bayesian update: prior N(m, V), observe y ~ N(μ, σ²_obs) → posterior (m1, V1).
+// Returns { means: number[], stds: number[] }.
+function bayesianUpdateSequence(observations, obsVariance) {
+  const n = observations.length;
+  if (n === 0) return { means: [], stds: [] };
+  const mean0 = observations[0];
+  const V0 = 1e10; // weak prior
+  let m = mean0;
+  let V = V0;
+  const means = [];
+  const stds = [];
+  for (let i = 0; i < n; i++) {
+    const y = observations[i];
+    const precPost = 1 / V + 1 / obsVariance;
+    const Vnew = 1 / precPost;
+    const mnew = Vnew * (m / V + y / obsVariance);
+    means.push(Math.round(mnew));
+    stds.push(Math.sqrt(Vnew));
+    m = mnew;
+    V = Vnew;
+  }
+  return { means, stds };
 }
 
 function showError(msg) {
@@ -148,6 +178,13 @@ async function loadData() {
     }
 
     drawChart(labels, realPrice, expectedPrice);
+
+    const avg = realPrice.reduce((a, b) => a + b, 0) / realPrice.length;
+    const obsVariance = realPrice.length > 1
+      ? Math.max(1e6, realPrice.reduce((s, p) => s + (p - avg) ** 2, 0) / realPrice.length)
+      : 1e8;
+    const { means: bayesianMeans, stds: bayesianStds } = bayesianUpdateSequence(realPrice, obsVariance);
+    drawBayesianChart(labels, realPrice, bayesianMeans, bayesianStds);
   } catch (e) {
     showError("Error: " + e.message);
   }
@@ -167,6 +204,42 @@ function drawChart(labels, realPrice, expectedPrice) {
       datasets: [
         { label: "Actual price", data: realPrice, borderColor: "rgb(0,200,255)", tension: 0.1 },
         { label: "Expected (calculated) price", data: expectedPrice, borderColor: "rgb(255,180,0)", borderDash: [6, 4], borderWidth: 2, tension: 0.1, spanGaps: true }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 14,
+            autoSkip: true,
+            callback: function(_, i) { return this.chart.data.labels[i] || ""; }
+          }
+        }
+      }
+    }
+  });
+}
+
+let chartBayesianInstance = null;
+
+function drawBayesianChart(labels, realPrice, bayesianMeans, bayesianStds) {
+  if (chartBayesianInstance) {
+    chartBayesianInstance.destroy();
+    chartBayesianInstance = null;
+  }
+  const upper = bayesianMeans.map((m, i) => m + 2 * bayesianStds[i]);
+  const lower = bayesianMeans.map((m, i) => m - 2 * bayesianStds[i]);
+  chartBayesianInstance = new Chart(document.getElementById("chartBayesian"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        { label: "90% band", data: lower, borderColor: "rgba(180,100,255,0.25)", backgroundColor: "rgba(180,100,255,0.12)", fill: "+1", pointRadius: 0, tension: 0.1 },
+        { label: "", data: upper, borderColor: "rgba(180,100,255,0.25)", fill: false, pointRadius: 0, tension: 0.1 },
+        { label: "Actual price", data: realPrice, borderColor: "rgb(0,200,255)", tension: 0.1 },
+        { label: "Bayesian expected", data: bayesianMeans, borderColor: "rgb(180,100,255)", borderDash: [6, 4], borderWidth: 2, tension: 0.1, spanGaps: true }
       ]
     },
     options: {
