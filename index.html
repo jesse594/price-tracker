@@ -64,6 +64,65 @@
 
 
 
+<!-- LOG TRADE PANEL -->
+
+<div style="
+position:fixed;
+top:20px;
+right:20px;
+background:#1a1a1a;
+padding:15px;
+border:1px solid #333;
+border-radius:6px;
+width:220px;
+">
+
+<h3 style="margin-top:0;">Log Trade</h3>
+
+<input id="log_item_id"
+placeholder="Item ID"
+style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
+>
+
+<input id="log_item_name"
+placeholder="Item Name"
+style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
+>
+
+<input id="log_buy_price"
+type="number"
+placeholder="Buy Price"
+style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
+>
+
+<input id="log_quantity"
+type="number"
+value="1"
+placeholder="Quantity"
+style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
+>
+
+<button onclick="logTrade()"
+style="
+width:100%;
+padding:8px;
+background:limegreen;
+color:black;
+border:none;
+font-weight:bold;
+cursor:pointer;
+">
+LOG TRADE
+</button>
+
+<div id="log_status"
+style="margin-top:8px;font-size:12px;height:14px;">
+</div>
+
+</div>
+
+
+
 <script>
 
 const SUPABASE_URL =
@@ -71,6 +130,147 @@ const SUPABASE_URL =
 
 const SUPABASE_KEY =
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
+
+
+
+/* LOG TRADE FUNCTION */
+
+async function logTrade() {
+
+  const item_id =
+  parseInt(
+    document.getElementById("log_item_id").value
+  );
+
+  const item_name =
+  document.getElementById("log_item_name").value.trim();
+
+  const buy_price =
+  parseInt(
+    document.getElementById("log_buy_price").value
+  );
+
+  const quantity =
+  parseInt(
+    document.getElementById("log_quantity").value
+  ) || 1;
+
+  const statusEl =
+  document.getElementById("log_status");
+
+
+  if (!item_id || !item_name || !buy_price) {
+
+    statusEl.innerText =
+    "Missing fields";
+
+    statusEl.style.color =
+    "red";
+
+    return;
+
+  }
+
+
+  statusEl.innerText =
+  "Logging...";
+
+  statusEl.style.color =
+  "orange";
+
+
+  try {
+
+    const res =
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/trades`,
+      {
+        method: "POST",
+
+        headers: {
+
+          apikey:
+          SUPABASE_KEY,
+
+          Authorization:
+          `Bearer ${SUPABASE_KEY}`,
+
+          "Content-Type":
+          "application/json",
+
+          Prefer:
+          "return=minimal"
+
+        },
+
+        body:
+        JSON.stringify({
+
+          item_id:
+          item_id,
+
+          item_name:
+          item_name,
+
+          buy_price:
+          buy_price,
+
+          quantity:
+          quantity,
+
+          status:
+          "OPEN"
+
+        })
+
+      }
+    );
+
+
+    if (res.ok) {
+
+      statusEl.innerText =
+      "Logged ✓";
+
+      statusEl.style.color =
+      "limegreen";
+
+
+      document.getElementById("log_item_id").value = "";
+      document.getElementById("log_item_name").value = "";
+      document.getElementById("log_buy_price").value = "";
+      document.getElementById("log_quantity").value = "1";
+
+
+      loadDashboard();
+
+    }
+
+    else {
+
+      statusEl.innerText =
+      "Error";
+
+      statusEl.style.color =
+      "red";
+
+    }
+
+  }
+
+  catch {
+
+    statusEl.innerText =
+    "Error";
+
+    statusEl.style.color =
+    "red";
+
+  }
+
+}
+
+
 
 
 
@@ -212,7 +412,7 @@ async function loadDashboard() {
 
   }
 
-  catch (err) {
+  catch {
 
     tbody.innerHTML =
     `<tr><td colspan="5" style="padding:8px;color:red;">
@@ -327,7 +527,7 @@ async function loadOpportunities() {
 
   }
 
-  catch (err) {
+  catch {
 
     tbody.innerHTML =
     `<tr><td colspan="4" style="padding:8px;color:red;">
