@@ -72,32 +72,17 @@ async function loadData() {
       return;
     }
 
-    let expected = [];
+    let model = null;
     try {
-      const expectedRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/expected_prices?item_id=eq.6731&order=created_at.asc`,
-        {
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`,
-            Range: "0-99999"
-          }
-        }
+      const modelRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/price_models?item_id=eq.6731&order=calculated_at.desc`,
+        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Range: "0-0" } }
       );
-      if (expectedRes.ok) {
-        const data = await expectedRes.json();
-        expected = Array.isArray(data) ? data : [];
+      if (modelRes.ok) {
+        const data = await modelRes.json();
+        model = Array.isArray(data) && data.length ? data[0] : null;
       }
     } catch (_) {}
-
-    const expectedMap = {};
-    expected.forEach(e => {
-      if (e.expected_price == null) return;
-      const ts = e.timestamp != null ? e.timestamp : (e.last_updated || e.created_at ? Math.floor(new Date(e.last_updated || e.created_at).getTime() / 1000) : null);
-      if (ts == null || isNaN(ts)) return;
-      const bucket = Math.floor(ts / FIVE_MIN) * FIVE_MIN;
-      expectedMap[bucket] = e.expected_price;
-    });
 
     const indices = [];
     let lastBucket = null;
@@ -110,11 +95,42 @@ async function loadData() {
     }
 
     const realPrice = indices.map(i => prices[i].mid_price);
-    const expectedPrice = indices.map(i => {
-      const bucket = Math.floor(prices[i].timestamp / FIVE_MIN) * FIVE_MIN;
-      return expectedMap[bucket] ?? null;
-    });
     const labels = indices.map(i => formatFifteenMin(prices[i].timestamp));
+
+    let expectedPrice = indices.map(() => null);
+    if (model && typeof model.intercept === "number") {
+      expectedPrice = indices.map(i => {
+        const p = prices[i];
+        const spread = p.spread ?? 0;
+        const vol = p.volume ?? 0;
+        const coefSpread = model.coef_spread != null ? model.coef_spread : 0;
+        const coefVol = model.coef_volume != null ? model.coef_volume : 0;
+        return Math.round(model.intercept + coefSpread * spread + coefVol * vol);
+      });
+    } else {
+      try {
+        const epRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/expected_prices_data?item_id=eq.6731&order=last_updated.asc`,
+          { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Range: "0-99999" } }
+        );
+        if (epRes.ok) {
+          const epRows = await epRes.json();
+          if (Array.isArray(epRows) && epRows.length > 0) {
+            const epByTs = {};
+            epRows.forEach(r => {
+              const ts = Math.floor(new Date(r.last_updated).getTime() / 1000);
+              const bucket = Math.floor(ts / FIFTEEN_MIN) * FIFTEEN_MIN;
+              epByTs[bucket] = r.expected_price;
+            });
+            expectedPrice = indices.map(i => {
+              const bucket = Math.floor(prices[i].timestamp / FIFTEEN_MIN) * FIFTEEN_MIN;
+              const v = epByTs[bucket];
+              return v != null ? Number(v) : null;
+            });
+          }
+        }
+      } catch (_) {}
+    }
 
     drawChart(labels, realPrice, expectedPrice);
   } catch (e) {
@@ -135,7 +151,7 @@ function drawChart(labels, realPrice, expectedPrice) {
       labels: labels,
       datasets: [
         { label: "Actual price", data: realPrice, borderColor: "rgb(0,200,255)", tension: 0.1 },
-        { label: "Expected (calculated) price", data: expectedPrice, borderColor: "rgb(255,200,0)", tension: 0.1 }
+        { label: "Expected (calculated) price", data: expectedPrice, borderColor: "rgb(255,180,0)", borderDash: [6, 4], borderWidth: 2, tension: 0.1, spanGaps: true }
       ]
     },
     options: {
@@ -158,6 +174,7 @@ async function loadLastUpdated() {
   const rows = [
     { table: "prices", label: "prices" },
     { table: "expected_prices", label: "expected_prices" },
+    { table: "expected_prices_data", label: "expected_prices_data" },
     { table: "price_models", label: "price_models" }
   ];
 
@@ -172,6 +189,9 @@ async function loadLastUpdated() {
         dateKey = "timestamp";
       } else if (table === "expected_prices") {
         url = `${SUPABASE_URL}/rest/v1/expected_prices?order=last_updated.desc`;
+        dateKey = "last_updated";
+      } else if (table === "expected_prices_data") {
+        url = `${SUPABASE_URL}/rest/v1/expected_prices_data?order=last_updated.desc`;
         dateKey = "last_updated";
       } else if (table === "price_models") {
         url = `${SUPABASE_URL}/rest/v1/price_models?order=calculated_at.desc`;
