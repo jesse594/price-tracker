@@ -20,8 +20,8 @@
   </tbody>
 </table>
 
-<h2>Seers Ring Price vs Expected Price</h2>
-
+<h2>Seers ring: actual price vs expected (calculated) price</h2>
+<p style="color:#888;font-size:14px;">Actual = mid price from <code>prices</code>. Expected = calculated from <code>price_models</code> (stored in <code>expected_prices</code>).</p>
 <div style="max-width:900px;height:400px;">
   <canvas id="chart"></canvas>
 </div>
@@ -32,6 +32,16 @@ const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
 
 const FIVE_MIN = 300;
+const FIFTEEN_MIN = 900;
+const THIRTY_MIN = 1800;
+
+function formatFifteenMin(ts) {
+  const rounded = Math.floor(ts / FIFTEEN_MIN) * FIFTEEN_MIN;
+  const d = new Date(rounded * 1000);
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
 
 function showError(msg) {
   const p = document.createElement("p");
@@ -80,9 +90,6 @@ async function loadData() {
       }
     } catch (_) {}
 
-    const labels = prices.map(p => new Date(p.timestamp * 1000).toLocaleTimeString());
-    const realPrice = prices.map(p => p.mid_price);
-
     const expectedMap = {};
     expected.forEach(e => {
       if (e.expected_price == null) return;
@@ -92,10 +99,22 @@ async function loadData() {
       expectedMap[bucket] = e.expected_price;
     });
 
-    const expectedPrice = prices.map(p => {
-      const bucket = Math.floor(p.timestamp / FIVE_MIN) * FIVE_MIN;
+    const indices = [];
+    let lastBucket = null;
+    for (let i = 0; i < prices.length; i++) {
+      const b = Math.floor(prices[i].timestamp / FIFTEEN_MIN) * FIFTEEN_MIN;
+      if (lastBucket !== b) {
+        lastBucket = b;
+        indices.push(i);
+      }
+    }
+
+    const realPrice = indices.map(i => prices[i].mid_price);
+    const expectedPrice = indices.map(i => {
+      const bucket = Math.floor(prices[i].timestamp / FIVE_MIN) * FIVE_MIN;
       return expectedMap[bucket] ?? null;
     });
+    const labels = indices.map(i => formatFifteenMin(prices[i].timestamp));
 
     drawChart(labels, realPrice, expectedPrice);
   } catch (e) {
@@ -115,13 +134,21 @@ function drawChart(labels, realPrice, expectedPrice) {
     data: {
       labels: labels,
       datasets: [
-        { label: "Real Price", data: realPrice, borderColor: "rgb(0,200,255)", tension: 0.1 },
-        { label: "Expected Price", data: expectedPrice, borderColor: "rgb(255,200,0)", tension: 0.1 }
+        { label: "Actual price", data: realPrice, borderColor: "rgb(0,200,255)", tension: 0.1 },
+        { label: "Expected (calculated) price", data: expectedPrice, borderColor: "rgb(255,200,0)", tension: 0.1 }
       ]
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 20,
+            callback: function(_, i) { return this.chart.data.labels[i] || ""; }
+          }
+        }
+      }
     }
   });
 }
