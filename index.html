@@ -1,39 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OSRS Trading Dashboard</title>
+</head>
+
+<body style="font-family:Arial;background:#111;color:#eee;padding:20px;">
+
+<h1>OSRS Trading Dashboard</h1>
+
+<table style="border-collapse:collapse;width:600px;">
+  <thead>
+    <tr style="border-bottom:1px solid #444;">
+      <th style="padding:8px;text-align:left;">Item</th>
+      <th style="padding:8px;text-align:right;">Buy Price</th>
+      <th style="padding:8px;text-align:right;">Current Price</th>
+      <th style="padding:8px;text-align:right;">Profit / Loss</th>
+      <th style="padding:8px;text-align:right;">Signal</th>
+    </tr>
+  </thead>
+
+  <tbody id="positions">
+    <tr>
+      <td colspan="5" style="padding:8px;color:#888;">
+        Loading...
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
 <script>
 
-const SUPABASE_URL = "https://goabrqjuguybmvjlqylq.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
+const SUPABASE_URL =
+"https://goabrqjuguybmvjlqylq.supabase.co";
+
+const SUPABASE_KEY =
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
+
 
 async function loadDashboard() {
 
-  const tbody = document.getElementById("positions");
+  const tbody =
+  document.getElementById("positions");
 
   try {
 
-    // 1. Fetch your open trades
+    // fetch open trades
     const tradesRes = await fetch(
       `${SUPABASE_URL}/rest/v1/trades?status=eq.OPEN`,
       {
         headers: {
           apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
+          Authorization:
+          `Bearer ${SUPABASE_KEY}`
         }
       }
     );
 
-    const trades = await tradesRes.json();
+    const trades =
+    await tradesRes.json();
 
-    // 2. Fetch live OSRS prices
+
+    // fetch live prices
     const priceRes = await fetch(
       "https://prices.runescape.wiki/api/v1/osrs/latest"
     );
 
-    const priceData = await priceRes.json();
+    const priceData =
+    await priceRes.json();
 
-    if (!Array.isArray(trades) || trades.length === 0) {
+
+    if (!Array.isArray(trades)
+        || trades.length === 0) {
 
       tbody.innerHTML = `
         <tr>
-          <td colspan="5" style="padding:8px;color:#888;">
+          <td colspan="5"
+            style="padding:8px;color:#888;">
             No open positions
           </td>
         </tr>
@@ -42,83 +85,58 @@ async function loadDashboard() {
       return;
     }
 
-    // 3. Build table rows with decision logic
-    tbody.innerHTML = trades.map(trade => {
 
-      const market = priceData.data[trade.item_id];
+    tbody.innerHTML =
+    trades.map(trade => {
+
+      const market =
+      priceData.data[trade.item_id];
 
       if (!market) return "";
 
       const current =
-        Math.floor((market.high + market.low) / 2);
+      Math.floor(
+        (market.high + market.low) / 2
+      );
 
       const buy =
-        trade.buy_price;
+      trade.buy_price;
 
       const profit =
-        current - buy;
+      current - buy;
 
       const stopPrice =
-        Math.floor(buy * 0.92);
+      Math.floor(buy * 0.92);
+
 
       let signal = "HOLD";
       let signalColor = "orange";
 
       if (current <= stopPrice) {
+
         signal = "SELL";
         signalColor = "red";
+
       }
 
+
       const profitColor =
-        profit >= 0 ? "limegreen" : "red";
+      profit >= 0
+      ? "limegreen"
+      : "red";
+
 
       return `
-        <tr style="border-bottom:1px solid #222;">
+        <tr style="
+          border-bottom:1px solid #222;
+        ">
 
           <td style="padding:8px;">
             ${trade.item_name}
           </td>
 
-          <td style="padding:8px;text-align:right;">
+          <td style="
+            padding:8px;
+            text-align:right;
+          ">
             ${buy.toLocaleString()}
-          </td>
-
-          <td style="padding:8px;text-align:right;">
-            ${current.toLocaleString()}
-          </td>
-
-          <td style="padding:8px;text-align:right;color:${profitColor};">
-            ${profit.toLocaleString()}
-          </td>
-
-          <td style="padding:8px;text-align:right;">
-            Stop: ${stopPrice.toLocaleString()}<br>
-            <span style="color:${signalColor};font-weight:bold;">
-              ${signal}
-            </span>
-          </td>
-
-        </tr>
-      `;
-
-    }).join("");
-
-  }
-  catch (err) {
-
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="5" style="padding:8px;color:red;">
-          Error loading dashboard
-        </td>
-      </tr>
-    `;
-
-  }
-
-}
-
-// Run immediately
-loadDashboard();
-
-</script>
