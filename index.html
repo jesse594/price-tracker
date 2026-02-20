@@ -84,6 +84,7 @@
   <thead>
     <tr style="border-bottom:1px solid #444;">
       <th style="padding:8px;text-align:left;">Item ID</th>
+      <th style="padding:8px;text-align:left;">Item name</th>
       <th style="padding:8px;text-align:right;">Current Price</th>
       <th style="padding:8px;text-align:right;">Upside %</th>
       <th style="padding:8px;text-align:right;">Signal</th>
@@ -92,7 +93,7 @@
 
   <tbody id="opportunities">
     <tr>
-      <td colspan="4" style="padding:8px;color:#888;">
+      <td colspan="5" style="padding:8px;color:#888;">
         Scanning market...
       </td>
     </tr>
@@ -627,6 +628,11 @@ async function confirmCloseTrade() {
 
 /* LOAD BUY OPPORTUNITIES */
 
+const WIKI_HEADERS = {
+  "User-Agent": "OSRS-Price-Tracker/1.0 (https://github.com/jesse594/price-tracker)",
+  "Accept": "application/json"
+};
+
 async function loadOpportunities() {
 
   const tbody =
@@ -634,22 +640,35 @@ async function loadOpportunities() {
 
   try {
 
-    const latestRes =
-    await fetch(
-      "https://prices.runescape.wiki/api/v1/osrs/latest"
-    );
+    const [latestRes, fiveMinRes, mappingRes] =
+    await Promise.all([
+      fetch("https://prices.runescape.wiki/api/v1/osrs/latest", { headers: WIKI_HEADERS }),
+      fetch("https://prices.runescape.wiki/api/v1/osrs/5m", { headers: WIKI_HEADERS }),
+      fetch("https://prices.runescape.wiki/api/v1/osrs/mapping", { headers: WIKI_HEADERS })
+    ]);
 
     const latest =
     await latestRes.json();
 
-
-    const fiveMinRes =
-    await fetch(
-      "https://prices.runescape.wiki/api/v1/osrs/5m"
-    );
-
     const fiveMin =
     await fiveMinRes.json();
+
+    const mapping =
+    await mappingRes.json();
+
+    const idToName =
+    {};
+
+    if (Array.isArray(mapping)) {
+
+      mapping.forEach(function (m) {
+
+        if (m && m.id != null && m.name != null)
+        idToName[m.id] = m.name;
+
+      });
+
+    }
 
 
     const candidates =
@@ -681,6 +700,7 @@ async function loadOpportunities() {
 
       return {
         itemId,
+        itemName: idToName[itemId] || "—",
         current,
         upside
       };
@@ -704,6 +724,10 @@ async function loadOpportunities() {
 
           <td style="padding:8px;">
             ${item.itemId}
+          </td>
+
+          <td style="padding:8px;">
+            ${(item.itemName || "—").replace(/</g, "&lt;")}
           </td>
 
           <td style="padding:8px;text-align:right;">
@@ -731,7 +755,7 @@ async function loadOpportunities() {
   catch {
 
     tbody.innerHTML =
-    `<tr><td colspan="4" style="padding:8px;color:red;">
+    `<tr><td colspan="5" style="padding:8px;color:red;">
     Error scanning market
     </td></tr>`;
 
