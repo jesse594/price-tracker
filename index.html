@@ -8,27 +8,32 @@
 
 <body style="font-family:Arial;background:#111;color:#eee;padding:20px;">
 
-<h1>OSRS Trading Dashboard</h1>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+  <h1 style="margin:0;">OSRS Trading Dashboard</h1>
+  <span id="lastUpdatedStamp" style="font-size:11px;color:#666;">—</span>
+</div>
 
 
-<!-- CURRENT POSITIONS -->
+<!-- ALL TRADES -->
 
-<h2>Open Positions</h2>
+<h2>Trades</h2>
 
 <table style="border-collapse:collapse;width:700px;">
   <thead>
     <tr style="border-bottom:1px solid #444;">
       <th style="padding:8px;text-align:left;">Item</th>
       <th style="padding:8px;text-align:right;">Buy Price</th>
-      <th style="padding:8px;text-align:right;">Current Price</th>
+      <th style="padding:8px;text-align:right;">Current / Sell Price</th>
       <th style="padding:8px;text-align:right;">Profit / Loss</th>
       <th style="padding:8px;text-align:right;">Signal</th>
+      <th style="padding:8px;text-align:center;">Status</th>
+      <th style="padding:8px;text-align:center;">Close trade</th>
     </tr>
   </thead>
 
   <tbody id="positions">
     <tr>
-      <td colspan="5" style="padding:8px;color:#888;">
+      <td colspan="7" style="padding:8px;color:#888;">
         Loading...
       </td>
     </tr>
@@ -216,17 +221,20 @@ async function logTrade() {
         body:
         JSON.stringify({
 
+          item_id:
+          item_id,
+
           item_name:
           item_name,
 
-          side:
-          tradeType,
-
-          price:
+          buy_price:
           price,
 
           quantity:
-          quantity
+          quantity,
+
+          status:
+          tradeType === "buy" ? "OPEN" : "CLOSED"
 
         })
 
@@ -310,8 +318,8 @@ async function loadDashboard() {
 
 
     const trades =
-    allTrades.filter(
-      t => t.status === "OPEN"
+    allTrades.sort(
+      (a, b) => (b.id || 0) - (a.id || 0)
     );
 
 
@@ -324,13 +332,15 @@ async function loadDashboard() {
     await priceRes.json();
 
 
+    updateLastUpdatedStamp();
+
     if (trades.length === 0) {
 
       tbody.innerHTML = `
         <tr>
-          <td colspan="5"
+          <td colspan="7"
           style="padding:8px;color:#888;">
-            No open positions
+            No trades yet
           </td>
         </tr>
       `;
@@ -343,49 +353,99 @@ async function loadDashboard() {
     tbody.innerHTML =
     trades.map(trade => {
 
-      const market =
-      priceData.data[trade.item_id];
-
-      if (!market) return "";
-
-      const current =
-      Math.floor(
-        (market.high + market.low) / 2
-      );
-
       const buy =
       trade.buy_price;
 
-      const profit =
-      current - buy;
+      const isOpen =
+      trade.status === "OPEN";
 
-      const stopPrice =
-      Math.floor(buy * 0.92);
+      let currentOrSell =
+      "";
 
+      let profit =
+      null;
 
-      let signal =
-      "HOLD";
+      let signalHtml =
+      "—";
 
-      let signalColor =
-      "orange";
+      let profitColor =
+      "inherit";
 
+      if (isOpen) {
 
-      if (current <= stopPrice) {
+        const market =
+        priceData.data[trade.item_id];
 
-        signal =
-        "SELL";
+        if (!market) return "";
 
-        signalColor =
-        "red";
+        const current =
+        Math.floor(
+          (market.high + market.low) / 2
+        );
+
+        currentOrSell =
+        current.toLocaleString();
+
+        profit =
+        current - buy;
+
+        const stopPrice =
+        Math.floor(buy * 0.92);
+
+        let signal =
+        "HOLD";
+
+        let signalColor =
+        "orange";
+
+        if (current <= stopPrice) {
+
+          signal =
+          "SELL";
+
+          signalColor =
+          "red";
+
+        }
+
+        signalHtml =
+        `Stop: ${stopPrice.toLocaleString()}<br><span style="color:${signalColor};font-weight:bold;">${signal}</span>`;
+
+        profitColor =
+        profit >= 0 ? "limegreen" : "red";
+
+      } else {
+
+        const sell =
+        trade.sell_price;
+
+        currentOrSell =
+        sell != null ? sell.toLocaleString() : "—";
+
+        profit =
+        sell != null ? sell - buy : null;
+
+        profitColor =
+        profit != null && profit >= 0 ? "limegreen" : profit != null ? "red" : "inherit";
 
       }
 
+      const profitStr =
+      profit != null ? profit.toLocaleString() : "—";
 
-      const profitColor =
-      profit >= 0
-      ? "limegreen"
-      : "red";
+      const tradeId =
+      trade.id;
 
+      const statusText =
+      trade.status || "—";
+
+      const statusColor =
+      isOpen ? "limegreen" : "#888";
+
+      const closeButton =
+      isOpen
+        ? `<button onclick="closeTrade(${tradeId})" style="padding:4px 10px;font-size:12px;cursor:pointer;background:#333;color:#eee;border:1px solid #555;border-radius:4px;">Close trade</button>`
+        : "—";
 
       return `
 
@@ -400,18 +460,23 @@ async function loadDashboard() {
           </td>
 
           <td style="padding:8px;text-align:right;">
-            ${current.toLocaleString()}
+            ${currentOrSell}
           </td>
 
           <td style="padding:8px;text-align:right;color:${profitColor};">
-            ${profit.toLocaleString()}
+            ${profitStr}
           </td>
 
           <td style="padding:8px;text-align:right;">
-            Stop: ${stopPrice.toLocaleString()}<br>
-            <span style="color:${signalColor};font-weight:bold;">
-            ${signal}
-            </span>
+            ${signalHtml}
+          </td>
+
+          <td style="padding:8px;text-align:center;color:${statusColor};">
+            ${statusText}
+          </td>
+
+          <td style="padding:8px;text-align:center;">
+            ${closeButton}
           </td>
 
         </tr>
@@ -425,9 +490,93 @@ async function loadDashboard() {
   catch {
 
     tbody.innerHTML =
-    `<tr><td colspan="5" style="padding:8px;color:red;">
+    `<tr><td colspan="7" style="padding:8px;color:red;">
     Error loading dashboard
     </td></tr>`;
+
+  }
+
+}
+
+
+function updateLastUpdatedStamp() {
+
+  const el =
+  document.getElementById("lastUpdatedStamp");
+
+  if (el)
+  el.textContent =
+  "Updated " + new Date().toLocaleString();
+
+}
+
+
+async function closeTrade(id) {
+
+  const sellPriceStr =
+  prompt("Sell price (GP):");
+
+  if (sellPriceStr === null || sellPriceStr.trim() === "")
+  return;
+
+  const sellPrice =
+  parseInt(sellPriceStr, 10);
+
+  if (isNaN(sellPrice) || sellPrice < 0) {
+
+    alert("Enter a valid price.");
+
+    return;
+
+  }
+
+  try {
+
+    const res =
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/trades?id=eq.${id}`,
+      {
+        method: "PATCH",
+
+        headers: {
+
+          apikey: SUPABASE_KEY,
+
+          Authorization:
+          `Bearer ${SUPABASE_KEY}`,
+
+          "Content-Type":
+          "application/json"
+
+        },
+
+        body:
+        JSON.stringify({
+
+          sell_price: sellPrice,
+
+          status: "CLOSED"
+
+        })
+
+      }
+    );
+
+    if (res.ok)
+    loadDashboard();
+    else {
+
+      const errText =
+      await res.text();
+
+      alert("Error " + res.status + ": " + (errText.slice(0, 100) || "check Supabase"));
+
+    }
+
+  }
+  catch (err) {
+
+    alert("Error: " + (err && err.message ? err.message : "network?"));
 
   }
 
@@ -534,6 +683,8 @@ async function loadOpportunities() {
       `;
 
     }).join("");
+
+    updateLastUpdatedStamp();
 
   }
 
