@@ -513,7 +513,7 @@ let closingTradeId = null;
 function openCloseTradeModal(btn) {
 
   const id =
-  parseInt(btn.getAttribute("data-id"), 10);
+  btn.getAttribute("data-id");
 
   const itemName =
   btn.getAttribute("data-item-name") || "";
@@ -572,7 +572,7 @@ async function confirmCloseTrade() {
 
     const res =
     await fetch(
-      `${SUPABASE_URL}/rest/v1/trades?id=eq.${closingTradeId}`,
+      `${SUPABASE_URL}/rest/v1/trades?id=eq.${encodeURIComponent(closingTradeId)}`,
       {
         method: "PATCH",
 
