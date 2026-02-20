@@ -18,23 +18,20 @@
 
 <section style="margin-bottom:32px;">
   <h2 style="margin-bottom:12px;font-size:1.25rem;">Open trades</h2>
-  <p style="color:#888;font-size:13px;margin-bottom:12px;">Sell at = price you’d get if you sold now. Buy at = price you’d pay to buy now. Margin = spread.</p>
-  <table style="border-collapse:collapse;width:100%;max-width:820px;">
+  <table style="border-collapse:collapse;width:100%;max-width:720px;">
     <thead>
       <tr style="border-bottom:2px solid #444;">
         <th style="padding:10px 12px;text-align:left;">Item</th>
-        <th style="padding:10px 12px;text-align:right;">Your buy</th>
-        <th style="padding:10px 12px;text-align:right;">Sell at</th>
-        <th style="padding:10px 12px;text-align:right;">Buy at</th>
-        <th style="padding:10px 12px;text-align:right;">Margin</th>
-        <th style="padding:10px 12px;text-align:right;">P/L</th>
+        <th style="padding:10px 12px;text-align:right;">Buy Price</th>
+        <th style="padding:10px 12px;text-align:right;">Current Price</th>
+        <th style="padding:10px 12px;text-align:right;">Profit / Loss</th>
         <th style="padding:10px 12px;text-align:right;">Signal</th>
         <th style="padding:10px 12px;text-align:center;">Close trade</th>
       </tr>
     </thead>
     <tbody id="openTradesBody">
       <tr>
-        <td colspan="8" style="padding:12px;color:#888;">Loading…</td>
+        <td colspan="6" style="padding:12px;color:#888;">Loading…</td>
       </tr>
     </tbody>
   </table>
@@ -386,7 +383,7 @@ async function loadDashboard() {
     if (openTrades.length === 0) {
 
       openTbody.innerHTML =
-      `<tr><td colspan="8" style="padding:12px;color:#888;">No open trades</td></tr>`;
+      `<tr><td colspan="6" style="padding:12px;color:#888;">No open trades</td></tr>`;
 
     } else {
 
@@ -398,20 +395,16 @@ async function loadDashboard() {
 
         if (!market) return "";
 
-        const high =
-        market.high;
-
-        const low =
-        market.low;
-
-        const margin =
-        high - low;
+        const current =
+        Math.floor(
+          (market.high + market.low) / 2
+        );
 
         const buy =
         trade.buy_price;
 
         const profit =
-        high - buy;
+        current - buy;
 
         const stopPrice =
         Math.floor(buy * 0.92);
@@ -422,7 +415,7 @@ async function loadDashboard() {
         let signalColor =
         "orange";
 
-        if (high <= stopPrice) {
+        if (current <= stopPrice) {
 
           signal =
           "SELL";
@@ -441,9 +434,7 @@ async function loadDashboard() {
         return `<tr style="border-bottom:1px solid #333;">
             <td style="padding:10px 12px;">${trade.item_name}</td>
             <td style="padding:10px 12px;text-align:right;">${buy.toLocaleString()}</td>
-            <td style="padding:10px 12px;text-align:right;">${high.toLocaleString()}</td>
-            <td style="padding:10px 12px;text-align:right;">${low.toLocaleString()}</td>
-            <td style="padding:10px 12px;text-align:right;">${margin.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${current.toLocaleString()}</td>
             <td style="padding:10px 12px;text-align:right;color:${profitColor};">${profit.toLocaleString()}</td>
             <td style="padding:10px 12px;text-align:right;">Stop: ${stopPrice.toLocaleString()}<br><span style="color:${signalColor};font-weight:bold;">${signal}</span></td>
             <td style="padding:10px 12px;text-align:center;">
@@ -499,7 +490,7 @@ async function loadDashboard() {
   catch {
 
     openTbody.innerHTML =
-    `<tr><td colspan="8" style="padding:12px;color:red;">Error loading trades</td></tr>`;
+    `<tr><td colspan="6" style="padding:12px;color:red;">Error loading trades</td></tr>`;
 
     closedTbody.innerHTML =
     `<tr><td colspan="4" style="padding:12px;color:red;">Error loading trades</td></tr>`;
