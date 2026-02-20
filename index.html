@@ -18,20 +18,23 @@
 
 <section style="margin-bottom:32px;">
   <h2 style="margin-bottom:12px;font-size:1.25rem;">Open trades</h2>
-  <table style="border-collapse:collapse;width:100%;max-width:720px;">
+  <p style="color:#888;font-size:13px;margin-bottom:12px;">Sell at = price you’d get if you sold now. Buy at = price you’d pay to buy now. Margin = spread.</p>
+  <table style="border-collapse:collapse;width:100%;max-width:820px;">
     <thead>
       <tr style="border-bottom:2px solid #444;">
         <th style="padding:10px 12px;text-align:left;">Item</th>
-        <th style="padding:10px 12px;text-align:right;">Buy Price</th>
-        <th style="padding:10px 12px;text-align:right;">Current Price</th>
-        <th style="padding:10px 12px;text-align:right;">Profit / Loss</th>
+        <th style="padding:10px 12px;text-align:right;">Your buy</th>
+        <th style="padding:10px 12px;text-align:right;">Sell at</th>
+        <th style="padding:10px 12px;text-align:right;">Buy at</th>
+        <th style="padding:10px 12px;text-align:right;">Margin</th>
+        <th style="padding:10px 12px;text-align:right;">P/L</th>
         <th style="padding:10px 12px;text-align:right;">Signal</th>
         <th style="padding:10px 12px;text-align:center;">Close trade</th>
       </tr>
     </thead>
     <tbody id="openTradesBody">
       <tr>
-        <td colspan="6" style="padding:12px;color:#888;">Loading…</td>
+        <td colspan="8" style="padding:12px;color:#888;">Loading…</td>
       </tr>
     </tbody>
   </table>
@@ -79,13 +82,16 @@
 <!-- BUY OPPORTUNITIES -->
 
 <h2 style="margin-top:40px;">Buy Opportunities (≤ 2M)</h2>
-
-<table style="border-collapse:collapse;width:700px;">
+<p style="color:#888;font-size:13px;margin-bottom:12px;">Buy at = price to offer to buy (fill order). Sell at = price you’d get if you sold. Margin = spread.</p>
+<table style="border-collapse:collapse;width:100%;max-width:900px;">
   <thead>
     <tr style="border-bottom:1px solid #444;">
       <th style="padding:8px;text-align:left;">Item ID</th>
       <th style="padding:8px;text-align:left;">Item name</th>
-      <th style="padding:8px;text-align:right;">Current Price</th>
+      <th style="padding:8px;text-align:right;">Buy at</th>
+      <th style="padding:8px;text-align:right;">Sell at</th>
+      <th style="padding:8px;text-align:right;">Margin</th>
+      <th style="padding:8px;text-align:right;">Margin %</th>
       <th style="padding:8px;text-align:right;">Upside %</th>
       <th style="padding:8px;text-align:right;">Signal</th>
     </tr>
@@ -93,7 +99,7 @@
 
   <tbody id="opportunities">
     <tr>
-      <td colspan="5" style="padding:8px;color:#888;">
+      <td colspan="8" style="padding:8px;color:#888;">
         Scanning market...
       </td>
     </tr>
@@ -380,7 +386,7 @@ async function loadDashboard() {
     if (openTrades.length === 0) {
 
       openTbody.innerHTML =
-      `<tr><td colspan="6" style="padding:12px;color:#888;">No open trades</td></tr>`;
+      `<tr><td colspan="8" style="padding:12px;color:#888;">No open trades</td></tr>`;
 
     } else {
 
@@ -392,16 +398,20 @@ async function loadDashboard() {
 
         if (!market) return "";
 
-        const current =
-        Math.floor(
-          (market.high + market.low) / 2
-        );
+        const high =
+        market.high;
+
+        const low =
+        market.low;
+
+        const margin =
+        high - low;
 
         const buy =
         trade.buy_price;
 
         const profit =
-        current - buy;
+        high - buy;
 
         const stopPrice =
         Math.floor(buy * 0.92);
@@ -412,7 +422,7 @@ async function loadDashboard() {
         let signalColor =
         "orange";
 
-        if (current <= stopPrice) {
+        if (high <= stopPrice) {
 
           signal =
           "SELL";
@@ -431,7 +441,9 @@ async function loadDashboard() {
         return `<tr style="border-bottom:1px solid #333;">
             <td style="padding:10px 12px;">${trade.item_name}</td>
             <td style="padding:10px 12px;text-align:right;">${buy.toLocaleString()}</td>
-            <td style="padding:10px 12px;text-align:right;">${current.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${high.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${low.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${margin.toLocaleString()}</td>
             <td style="padding:10px 12px;text-align:right;color:${profitColor};">${profit.toLocaleString()}</td>
             <td style="padding:10px 12px;text-align:right;">Stop: ${stopPrice.toLocaleString()}<br><span style="color:${signalColor};font-weight:bold;">${signal}</span></td>
             <td style="padding:10px 12px;text-align:center;">
@@ -487,7 +499,7 @@ async function loadDashboard() {
   catch {
 
     openTbody.innerHTML =
-    `<tr><td colspan="6" style="padding:12px;color:red;">Error loading trades</td></tr>`;
+    `<tr><td colspan="8" style="padding:12px;color:red;">Error loading trades</td></tr>`;
 
     closedTbody.innerHTML =
     `<tr><td colspan="4" style="padding:12px;color:red;">Error loading trades</td></tr>`;
@@ -675,12 +687,16 @@ async function loadOpportunities() {
     Object.entries(latest.data)
     .map(([itemId, price]) => {
 
-      const current =
-      Math.floor(
-        (price.high + price.low) / 2
-      );
+      const high =
+      price.high;
 
-      if (current > 2000000)
+      const low =
+      price.low;
+
+      const mid =
+      Math.floor((high + low) / 2);
+
+      if (mid > 2000000)
         return null;
 
       const history =
@@ -696,12 +712,21 @@ async function loadOpportunities() {
         return null;
 
       const upside =
-      (avgHigh - current) / current;
+      (avgHigh - mid) / mid;
+
+      const margin =
+      high - low;
+
+      const marginPct =
+      low > 0 ? ((margin / low) * 100).toFixed(1) : "—";
 
       return {
         itemId,
         itemName: idToName[itemId] || "—",
-        current,
+        buyAt: low,
+        sellAt: high,
+        margin,
+        marginPct,
         upside
       };
 
@@ -731,7 +756,19 @@ async function loadOpportunities() {
           </td>
 
           <td style="padding:8px;text-align:right;">
-            ${item.current.toLocaleString()}
+            ${item.buyAt.toLocaleString()}
+          </td>
+
+          <td style="padding:8px;text-align:right;">
+            ${item.sellAt.toLocaleString()}
+          </td>
+
+          <td style="padding:8px;text-align:right;">
+            ${item.margin.toLocaleString()}
+          </td>
+
+          <td style="padding:8px;text-align:right;color:limegreen;">
+            ${item.marginPct}%
           </td>
 
           <td style="padding:8px;text-align:right;color:limegreen;">
@@ -755,7 +792,7 @@ async function loadOpportunities() {
   catch {
 
     tbody.innerHTML =
-    `<tr><td colspan="5" style="padding:8px;color:red;">
+    `<tr><td colspan="8" style="padding:8px;color:red;">
     Error scanning market
     </td></tr>`;
 
