@@ -14,32 +14,65 @@
 </div>
 
 
-<!-- ALL TRADES -->
+<!-- OPEN TRADES -->
 
-<h2>Trades</h2>
+<section style="margin-bottom:32px;">
+  <h2 style="margin-bottom:12px;font-size:1.25rem;">Open trades</h2>
+  <table style="border-collapse:collapse;width:100%;max-width:720px;">
+    <thead>
+      <tr style="border-bottom:2px solid #444;">
+        <th style="padding:10px 12px;text-align:left;">Item</th>
+        <th style="padding:10px 12px;text-align:right;">Buy Price</th>
+        <th style="padding:10px 12px;text-align:right;">Current Price</th>
+        <th style="padding:10px 12px;text-align:right;">Profit / Loss</th>
+        <th style="padding:10px 12px;text-align:right;">Signal</th>
+        <th style="padding:10px 12px;text-align:center;">Close trade</th>
+      </tr>
+    </thead>
+    <tbody id="openTradesBody">
+      <tr>
+        <td colspan="6" style="padding:12px;color:#888;">Loading…</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
 
-<table style="border-collapse:collapse;width:700px;">
-  <thead>
-    <tr style="border-bottom:1px solid #444;">
-      <th style="padding:8px;text-align:left;">Item</th>
-      <th style="padding:8px;text-align:right;">Buy Price</th>
-      <th style="padding:8px;text-align:right;">Current / Sell Price</th>
-      <th style="padding:8px;text-align:right;">Profit / Loss</th>
-      <th style="padding:8px;text-align:right;">Signal</th>
-      <th style="padding:8px;text-align:center;">Status</th>
-      <th style="padding:8px;text-align:center;">Close trade</th>
-    </tr>
-  </thead>
+<!-- CLOSED TRADES -->
 
-  <tbody id="positions">
-    <tr>
-      <td colspan="7" style="padding:8px;color:#888;">
-        Loading...
-      </td>
-    </tr>
-  </tbody>
+<section style="margin-bottom:32px;">
+  <h2 style="margin-bottom:12px;font-size:1.25rem;">Closed trades</h2>
+  <table style="border-collapse:collapse;width:100%;max-width:720px;">
+    <thead>
+      <tr style="border-bottom:2px solid #444;">
+        <th style="padding:10px 12px;text-align:left;">Item</th>
+        <th style="padding:10px 12px;text-align:right;">Buy Price</th>
+        <th style="padding:10px 12px;text-align:right;">Sell Price</th>
+        <th style="padding:10px 12px;text-align:right;">Profit / Loss</th>
+      </tr>
+    </thead>
+    <tbody id="closedTradesBody">
+      <tr>
+        <td colspan="4" style="padding:12px;color:#888;">Loading…</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
 
-</table>
+<!-- CLOSE TRADE MODAL -->
+
+<div id="closeTradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:#1a1a1a;border:1px solid #444;border-radius:8px;padding:24px;min-width:280px;">
+    <h3 style="margin:0 0 16px 0;">Close this trade</h3>
+    <p style="margin:0 0 8px 0;color:#aaa;">Item: <strong id="closeTradeItemName" style="color:#eee;"></strong></p>
+    <p style="margin:0 0 16px 0;color:#aaa;">Buy price: <strong id="closeTradeBuyPrice" style="color:#eee;"></strong> GP</p>
+    <label style="display:block;margin-bottom:6px;color:#aaa;font-size:14px;">Sell price (GP)</label>
+    <input id="closeTradeSellPrice" type="number" min="0" placeholder="e.g. 1017240" style="width:100%;padding:8px;margin-bottom:16px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;box-sizing:border-box;">
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" onclick="cancelCloseTrade()" style="padding:8px 16px;background:#333;color:#eee;border:1px solid #555;border-radius:4px;cursor:pointer;">Cancel</button>
+      <button type="button" onclick="confirmCloseTrade()" style="padding:8px 16px;background:limegreen;color:#000;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">Confirm</button>
+    </div>
+  </div>
+</div>
 
 
 
@@ -296,8 +329,11 @@ async function logTrade() {
 
 async function loadDashboard() {
 
-  const tbody =
-  document.getElementById("positions");
+  const openTbody =
+  document.getElementById("openTradesBody");
+
+  const closedTbody =
+  document.getElementById("closedTradesBody");
 
   try {
 
@@ -317,12 +353,6 @@ async function loadDashboard() {
     await tradesRes.json();
 
 
-    const trades =
-    allTrades.sort(
-      (a, b) => (b.id || 0) - (a.id || 0)
-    );
-
-
     const priceRes =
     await fetch(
       "https://prices.runescape.wiki/api/v1/osrs/latest"
@@ -334,44 +364,27 @@ async function loadDashboard() {
 
     updateLastUpdatedStamp();
 
-    if (trades.length === 0) {
 
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="7"
-          style="padding:8px;color:#888;">
-            No trades yet
-          </td>
-        </tr>
-      `;
+    const openTrades =
+    allTrades
+    .filter(t => t.status === "OPEN")
+    .sort((a, b) => (b.id || 0) - (a.id || 0));
 
-      return;
-
-    }
+    const closedTrades =
+    allTrades
+    .filter(t => t.status === "CLOSED" || (t.status !== "OPEN" && t.sell_price != null))
+    .sort((a, b) => (b.id || 0) - (a.id || 0));
 
 
-    tbody.innerHTML =
-    trades.map(trade => {
+    if (openTrades.length === 0) {
 
-      const buy =
-      trade.buy_price;
+      openTbody.innerHTML =
+      `<tr><td colspan="6" style="padding:12px;color:#888;">No open trades</td></tr>`;
 
-      const isOpen =
-      trade.status === "OPEN";
+    } else {
 
-      let currentOrSell =
-      "";
-
-      let profit =
-      null;
-
-      let signalHtml =
-      "—";
-
-      let profitColor =
-      "inherit";
-
-      if (isOpen) {
+      openTbody.innerHTML =
+      openTrades.map(trade => {
 
         const market =
         priceData.data[trade.item_id];
@@ -383,10 +396,10 @@ async function loadDashboard() {
           (market.high + market.low) / 2
         );
 
-        currentOrSell =
-        current.toLocaleString();
+        const buy =
+        trade.buy_price;
 
-        profit =
+        const profit =
         current - buy;
 
         const stopPrice =
@@ -408,91 +421,75 @@ async function loadDashboard() {
 
         }
 
-        signalHtml =
-        `Stop: ${stopPrice.toLocaleString()}<br><span style="color:${signalColor};font-weight:bold;">${signal}</span>`;
-
-        profitColor =
+        const profitColor =
         profit >= 0 ? "limegreen" : "red";
 
-      } else {
+        const itemNameEsc =
+        (trade.item_name || "").replace(/"/g, "&quot;");
+
+        return `<tr style="border-bottom:1px solid #333;">
+            <td style="padding:10px 12px;">${trade.item_name}</td>
+            <td style="padding:10px 12px;text-align:right;">${buy.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${current.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;color:${profitColor};">${profit.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">Stop: ${stopPrice.toLocaleString()}<br><span style="color:${signalColor};font-weight:bold;">${signal}</span></td>
+            <td style="padding:10px 12px;text-align:center;">
+              <button onclick="openCloseTradeModal(this)" data-id="${trade.id}" data-item-name="${itemNameEsc}" data-buy-price="${buy}" style="padding:6px 12px;font-size:12px;cursor:pointer;background:#333;color:#eee;border:1px solid #555;border-radius:4px;">Close trade</button>
+            </td>
+          </tr>`;
+
+      }).join("");
+
+    }
+
+
+    if (closedTrades.length === 0) {
+
+      closedTbody.innerHTML =
+      `<tr><td colspan="4" style="padding:12px;color:#888;">No closed trades</td></tr>`;
+
+    } else {
+
+      closedTbody.innerHTML =
+      closedTrades.map(trade => {
+
+        const buy =
+        trade.buy_price;
 
         const sell =
         trade.sell_price;
 
-        currentOrSell =
-        sell != null ? sell.toLocaleString() : "—";
-
-        profit =
+        const profit =
         sell != null ? sell - buy : null;
 
-        profitColor =
+        const profitColor =
         profit != null && profit >= 0 ? "limegreen" : profit != null ? "red" : "inherit";
 
-      }
+        const profitStr =
+        profit != null ? profit.toLocaleString() : "—";
 
-      const profitStr =
-      profit != null ? profit.toLocaleString() : "—";
+        return `
+          <tr style="border-bottom:1px solid #333;">
+            <td style="padding:10px 12px;">${trade.item_name}</td>
+            <td style="padding:10px 12px;text-align:right;">${buy.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${sell != null ? sell.toLocaleString() : "—"}</td>
+            <td style="padding:10px 12px;text-align:right;color:${profitColor};">${profitStr}</td>
+          </tr>
+        `;
 
-      const tradeId =
-      trade.id;
+      }).join("");
 
-      const statusText =
-      trade.status || "—";
-
-      const statusColor =
-      isOpen ? "limegreen" : "#888";
-
-      const closeButton =
-      isOpen
-        ? `<button onclick="closeTrade(${tradeId})" style="padding:4px 10px;font-size:12px;cursor:pointer;background:#333;color:#eee;border:1px solid #555;border-radius:4px;">Close trade</button>`
-        : "—";
-
-      return `
-
-        <tr style="border-bottom:1px solid #222;">
-
-          <td style="padding:8px;">
-            ${trade.item_name}
-          </td>
-
-          <td style="padding:8px;text-align:right;">
-            ${buy.toLocaleString()}
-          </td>
-
-          <td style="padding:8px;text-align:right;">
-            ${currentOrSell}
-          </td>
-
-          <td style="padding:8px;text-align:right;color:${profitColor};">
-            ${profitStr}
-          </td>
-
-          <td style="padding:8px;text-align:right;">
-            ${signalHtml}
-          </td>
-
-          <td style="padding:8px;text-align:center;color:${statusColor};">
-            ${statusText}
-          </td>
-
-          <td style="padding:8px;text-align:center;">
-            ${closeButton}
-          </td>
-
-        </tr>
-
-      `;
-
-    }).join("");
+    }
 
   }
 
   catch {
 
-    tbody.innerHTML =
-    `<tr><td colspan="7" style="padding:8px;color:red;">
-    Error loading dashboard
-    </td></tr>`;
+    openTbody.innerHTML =
+    `<tr><td colspan="6" style="padding:12px;color:red;">Error loading trades</td></tr>`;
+
+    closedTbody.innerHTML =
+    `<tr><td colspan="4" style="padding:12px;color:red;">Error loading trades</td></tr>`;
 
   }
 
@@ -511,13 +508,54 @@ function updateLastUpdatedStamp() {
 }
 
 
-async function closeTrade(id) {
+let closingTradeId = null;
+
+function openCloseTradeModal(btn) {
+
+  const id =
+  parseInt(btn.getAttribute("data-id"), 10);
+
+  const itemName =
+  btn.getAttribute("data-item-name") || "";
+
+  const buyPrice =
+  btn.getAttribute("data-buy-price");
+
+  closingTradeId = id;
+
+  document.getElementById("closeTradeItemName").textContent = itemName;
+
+  document.getElementById("closeTradeBuyPrice").textContent = buyPrice != null && buyPrice !== "" ? Number(buyPrice).toLocaleString() : "—";
+
+  document.getElementById("closeTradeSellPrice").value = "";
+
+  document.getElementById("closeTradeModal").style.display = "flex";
+
+}
+
+function cancelCloseTrade() {
+
+  closingTradeId = null;
+
+  document.getElementById("closeTradeModal").style.display = "none";
+
+}
+
+async function confirmCloseTrade() {
+
+  if (closingTradeId == null)
+  return;
 
   const sellPriceStr =
-  prompt("Sell price (GP):");
+  document.getElementById("closeTradeSellPrice").value.trim();
 
-  if (sellPriceStr === null || sellPriceStr.trim() === "")
-  return;
+  if (sellPriceStr === "") {
+
+    alert("Enter sell price (GP).");
+
+    return;
+
+  }
 
   const sellPrice =
   parseInt(sellPriceStr, 10);
@@ -534,7 +572,7 @@ async function closeTrade(id) {
 
     const res =
     await fetch(
-      `${SUPABASE_URL}/rest/v1/trades?id=eq.${id}`,
+      `${SUPABASE_URL}/rest/v1/trades?id=eq.${closingTradeId}`,
       {
         method: "PATCH",
 
@@ -561,6 +599,8 @@ async function closeTrade(id) {
 
       }
     );
+
+    cancelCloseTrade();
 
     if (res.ok)
     loadDashboard();
