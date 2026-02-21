@@ -4,6 +4,38 @@
 <head>
   <title>OSRS Trading Dashboard</title>
   <meta charset="UTF-8">
+  <style>
+    .log-trade-panel input,
+    .log-trade-panel select {
+      box-sizing: border-box;
+      border-radius: 6px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .log-trade-panel input:focus,
+    .log-trade-panel select:focus {
+      outline: none;
+      border-color: #6a9e5c;
+      box-shadow: 0 0 0 2px rgba(106, 158, 92, 0.25);
+    }
+    .log-trade-panel button {
+      border-radius: 6px;
+      transition: background 0.15s, transform 0.05s;
+    }
+    .log-trade-panel button:hover {
+      background: #85c977 !important;
+    }
+    .log-trade-panel button:active {
+      transform: scale(0.98);
+    }
+    .log-trade-panel .log-field-label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+  </style>
 </head>
 
 <body style="font-family:Arial;background:#111;color:#eee;padding:20px;">
@@ -22,6 +54,7 @@
     <thead>
       <tr style="border-bottom:2px solid #444;">
         <th style="padding:10px 12px;text-align:left;">Item</th>
+        <th style="padding:10px 12px;text-align:left;">Date</th>
         <th style="padding:10px 12px;text-align:right;">Buy Price</th>
         <th style="padding:10px 12px;text-align:right;">Current Price</th>
         <th style="padding:10px 12px;text-align:right;">Profit / Loss</th>
@@ -31,7 +64,7 @@
     </thead>
     <tbody id="openTradesBody">
       <tr>
-        <td colspan="6" style="padding:12px;color:#888;">Loading…</td>
+        <td colspan="7" style="padding:12px;color:#888;">Loading…</td>
       </tr>
     </tbody>
   </table>
@@ -45,6 +78,7 @@
     <thead>
       <tr style="border-bottom:2px solid #444;">
         <th style="padding:10px 12px;text-align:left;">Item</th>
+        <th style="padding:10px 12px;text-align:left;">Date</th>
         <th style="padding:10px 12px;text-align:right;">Buy Price</th>
         <th style="padding:10px 12px;text-align:right;">Sell Price</th>
         <th style="padding:10px 12px;text-align:right;">Profit / Loss</th>
@@ -52,7 +86,7 @@
     </thead>
     <tbody id="closedTradesBody">
       <tr>
-        <td colspan="4" style="padding:12px;color:#888;">Loading…</td>
+        <td colspan="5" style="padding:12px;color:#888;">Loading…</td>
       </tr>
     </tbody>
   </table>
@@ -76,97 +110,53 @@
 
 
 
-<!-- BUY OPPORTUNITIES -->
-
-<h2 style="margin-top:40px;">Buy Opportunities (≤ 2M)</h2>
-<p style="color:#888;font-size:13px;margin-bottom:12px;">Buy at = price to offer to buy (fill order). Sell at = price you’d get if you sold. Margin = spread.</p>
-<table style="border-collapse:collapse;width:100%;max-width:900px;">
-  <thead>
-    <tr style="border-bottom:1px solid #444;">
-      <th style="padding:8px;text-align:left;">Item ID</th>
-      <th style="padding:8px;text-align:left;">Item name</th>
-      <th style="padding:8px;text-align:right;">Buy at</th>
-      <th style="padding:8px;text-align:right;">Sell at</th>
-      <th style="padding:8px;text-align:right;">Margin</th>
-      <th style="padding:8px;text-align:right;">Margin %</th>
-      <th style="padding:8px;text-align:right;">Upside %</th>
-      <th style="padding:8px;text-align:right;">Signal</th>
-    </tr>
-  </thead>
-
-  <tbody id="opportunities">
-    <tr>
-      <td colspan="8" style="padding:8px;color:#888;">
-        Scanning market...
-      </td>
-    </tr>
-  </tbody>
-
-</table>
-
-
-
 <!-- LOG TRADE PANEL -->
 
-<div style="
-position:fixed;
-top:20px;
-right:20px;
-background:#1a1a1a;
-padding:15px;
-border:1px solid #333;
-border-radius:6px;
-width:220px;
+<div class="log-trade-panel" style="
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #1a1a1a;
+  padding: 20px 22px;
+  border: 1px solid #333;
+  border-radius: 10px;
+  width: 260px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 ">
 
-<h3 style="margin-top:0;">Log Trade</h3>
+  <h3 style="margin: 0 0 18px 0; font-size: 1.1rem; font-weight: 600; color: #eee;">Log Trade</h3>
 
-<select id="log_trade_type"
-style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
->
-  <option value="buy">Buy</option>
-  <option value="sell">Sell</option>
-</select>
+  <label class="log-field-label" for="log_trade_type">Type</label>
+  <select id="log_trade_type" style="width:100%;margin-bottom:14px;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;">
+    <option value="buy">Buy</option>
+    <option value="sell">Sell</option>
+  </select>
 
-<input id="log_item_id"
-placeholder="Item ID"
-style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
->
+  <label class="log-field-label" for="log_item_id">Item ID</label>
+  <input id="log_item_id" placeholder="e.g. 21902" style="width:100%;margin-bottom:14px;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;">
 
-<input id="log_item_name"
-placeholder="Item Name"
-style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
->
+  <label class="log-field-label" for="log_item_name">Item name</label>
+  <input id="log_item_name" placeholder="e.g. Dragon crossbow" style="width:100%;margin-bottom:14px;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;">
 
-<input id="log_price"
-type="number"
-placeholder="Price"
-style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
->
+  <label class="log-field-label" for="log_price">Price (GP)</label>
+  <input id="log_price" type="number" min="0" placeholder="e.g. 741000" style="width:100%;margin-bottom:14px;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;">
 
-<input id="log_quantity"
-type="number"
-value="1"
-placeholder="Quantity"
-style="width:100%;margin-bottom:8px;padding:6px;background:#222;color:#eee;border:1px solid #444;"
->
+  <label class="log-field-label" for="log_quantity">Quantity</label>
+  <input id="log_quantity" type="number" min="1" value="1" style="width:100%;margin-bottom:18px;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;">
 
-<button onclick="logTrade()"
-style="
-width:100%;
-padding:8px;
-background:limegreen;
-color:black;
-border:none;
-font-weight:bold;
-cursor:pointer;
-">
-LOG TRADE
-</button>
+  <button onclick="logTrade()" style="
+    width: 100%;
+    padding: 12px 16px;
+    background: limegreen;
+    color: #0d0d0d;
+    border: none;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+  ">Log trade</button>
 
-<div id="log_status"
-style="margin-top:8px;font-size:12px;height:14px;">
-</div>
+  <div id="log_status" style="margin-top:12px;font-size:12px;min-height:16px;color:#888;"></div>
 
 </div>
 
@@ -329,6 +319,16 @@ async function logTrade() {
 
 
 
+function formatTradeDate(isoString) {
+  if (!isoString) return "—";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "—";
+  const day = d.getDate();
+  const ord = day === 1 || day === 21 || day === 31 ? "st" : day === 2 || day === 22 ? "nd" : day === 3 || day === 23 ? "rd" : "th";
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return day + ord + " " + months[d.getMonth()];
+}
+
 /* LOAD OPEN POSITIONS */
 
 async function loadDashboard() {
@@ -383,7 +383,7 @@ async function loadDashboard() {
     if (openTrades.length === 0) {
 
       openTbody.innerHTML =
-      `<tr><td colspan="6" style="padding:12px;color:#888;">No open trades</td></tr>`;
+      `<tr><td colspan="7" style="padding:12px;color:#888;">No open trades</td></tr>`;
 
     } else {
 
@@ -433,6 +433,7 @@ async function loadDashboard() {
 
         return `<tr style="border-bottom:1px solid #333;">
             <td style="padding:10px 12px;">${trade.item_name}</td>
+            <td style="padding:10px 12px;">${formatTradeDate(trade.buy_time)}</td>
             <td style="padding:10px 12px;text-align:right;">${buy.toLocaleString()}</td>
             <td style="padding:10px 12px;text-align:right;">${current.toLocaleString()}</td>
             <td style="padding:10px 12px;text-align:right;color:${profitColor};">${profit.toLocaleString()}</td>
@@ -450,7 +451,7 @@ async function loadDashboard() {
     if (closedTrades.length === 0) {
 
       closedTbody.innerHTML =
-      `<tr><td colspan="4" style="padding:12px;color:#888;">No closed trades</td></tr>`;
+      `<tr><td colspan="5" style="padding:12px;color:#888;">No closed trades</td></tr>`;
 
     } else {
 
@@ -475,6 +476,7 @@ async function loadDashboard() {
         return `
           <tr style="border-bottom:1px solid #333;">
             <td style="padding:10px 12px;">${trade.item_name}</td>
+            <td style="padding:10px 12px;">${formatTradeDate(trade.buy_time)}</td>
             <td style="padding:10px 12px;text-align:right;">${buy.toLocaleString()}</td>
             <td style="padding:10px 12px;text-align:right;">${sell != null ? sell.toLocaleString() : "—"}</td>
             <td style="padding:10px 12px;text-align:right;color:${profitColor};">${profitStr}</td>
@@ -490,10 +492,10 @@ async function loadDashboard() {
   catch {
 
     openTbody.innerHTML =
-    `<tr><td colspan="6" style="padding:12px;color:red;">Error loading trades</td></tr>`;
+    `<tr><td colspan="7" style="padding:12px;color:red;">Error loading trades</td></tr>`;
 
     closedTbody.innerHTML =
-    `<tr><td colspan="4" style="padding:12px;color:red;">Error loading trades</td></tr>`;
+    `<tr><td colspan="5" style="padding:12px;color:red;">Error loading trades</td></tr>`;
 
   }
 
@@ -631,175 +633,11 @@ async function confirmCloseTrade() {
 
 /* LOAD BUY OPPORTUNITIES */
 
-const WIKI_HEADERS = {
-  "User-Agent": "OSRS-Price-Tracker/1.0 (https://github.com/jesse594/price-tracker)",
-  "Accept": "application/json"
-};
-
-async function loadOpportunities() {
-
-  const tbody =
-  document.getElementById("opportunities");
-
-  try {
-
-    const [latestRes, fiveMinRes, mappingRes] =
-    await Promise.all([
-      fetch("https://prices.runescape.wiki/api/v1/osrs/latest", { headers: WIKI_HEADERS }),
-      fetch("https://prices.runescape.wiki/api/v1/osrs/5m", { headers: WIKI_HEADERS }),
-      fetch("https://prices.runescape.wiki/api/v1/osrs/mapping", { headers: WIKI_HEADERS })
-    ]);
-
-    const latest =
-    await latestRes.json();
-
-    const fiveMin =
-    await fiveMinRes.json();
-
-    const mapping =
-    await mappingRes.json();
-
-    const idToName =
-    {};
-
-    if (Array.isArray(mapping)) {
-
-      mapping.forEach(function (m) {
-
-        if (m && m.id != null && m.name != null)
-        idToName[m.id] = m.name;
-
-      });
-
-    }
-
-
-    const candidates =
-    Object.entries(latest.data)
-    .map(([itemId, price]) => {
-
-      const high =
-      price.high;
-
-      const low =
-      price.low;
-
-      const mid =
-      Math.floor((high + low) / 2);
-
-      if (mid > 2000000)
-        return null;
-
-      const history =
-      fiveMin.data[itemId];
-
-      if (!history)
-        return null;
-
-      const avgHigh =
-      history.avgHighPrice;
-
-      if (!avgHigh)
-        return null;
-
-      const upside =
-      (avgHigh - mid) / mid;
-
-      const margin =
-      high - low;
-
-      const marginPct =
-      low > 0 ? ((margin / low) * 100).toFixed(1) : "—";
-
-      return {
-        itemId,
-        itemName: idToName[itemId] || "—",
-        buyAt: low,
-        sellAt: high,
-        margin,
-        marginPct,
-        upside
-      };
-
-    })
-    .filter(x => x && x.upside > 0.05)
-    .sort((a,b) => b.upside - a.upside)
-    .slice(0,10);
-
-
-
-    tbody.innerHTML =
-    candidates.map(item => {
-
-      const upsidePercent =
-      (item.upside * 100).toFixed(1);
-
-      return `
-
-        <tr style="border-bottom:1px solid #222;">
-
-          <td style="padding:8px;">
-            ${item.itemId}
-          </td>
-
-          <td style="padding:8px;">
-            ${(item.itemName || "—").replace(/</g, "&lt;")}
-          </td>
-
-          <td style="padding:8px;text-align:right;">
-            ${item.buyAt.toLocaleString()}
-          </td>
-
-          <td style="padding:8px;text-align:right;">
-            ${item.sellAt.toLocaleString()}
-          </td>
-
-          <td style="padding:8px;text-align:right;">
-            ${item.margin.toLocaleString()}
-          </td>
-
-          <td style="padding:8px;text-align:right;color:limegreen;">
-            ${item.marginPct}%
-          </td>
-
-          <td style="padding:8px;text-align:right;color:limegreen;">
-            ${upsidePercent}%
-          </td>
-
-          <td style="padding:8px;text-align:right;color:cyan;font-weight:bold;">
-            BUY
-          </td>
-
-        </tr>
-
-      `;
-
-    }).join("");
-
-    updateLastUpdatedStamp();
-
-  }
-
-  catch {
-
-    tbody.innerHTML =
-    `<tr><td colspan="8" style="padding:8px;color:red;">
-    Error scanning market
-    </td></tr>`;
-
-  }
-
-}
-
-
-
 /* RUN */
 
 loadDashboard();
-loadOpportunities();
 
 setInterval(loadDashboard, 60000);
-setInterval(loadOpportunities, 60000);
 
 
 </script>
