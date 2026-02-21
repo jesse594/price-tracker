@@ -92,6 +92,54 @@
   </table>
 </section>
 
+<!-- STABLE VOLUME (high volume, consistent volume over time) -->
+
+<section style="margin-bottom:32px;">
+  <h2 style="margin-bottom:12px;font-size:1.25rem;">Stable volume</h2>
+  <p style="color:#888;font-size:13px;margin-bottom:12px;">Items with total volume &gt; min and low change in volume over the last 12 hours (volume is consistent).</p>
+  <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+    <label style="display:flex;align-items:center;gap:6px;"><span style="color:#888;">Min total volume</span><input type="number" id="stableVolMinVolume" value="1000000" min="0" style="width:100px;padding:6px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;"></label>
+    <label style="display:flex;align-items:center;gap:6px;"><span style="color:#888;">Max volume CV</span><input type="number" id="stableVolMaxCV" value="0.35" min="0" step="0.05" style="width:70px;padding:6px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;"></label>
+    <button type="button" onclick="loadStableScans()" style="padding:8px 14px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;cursor:pointer;">Scan</button>
+  </div>
+  <table style="border-collapse:collapse;width:100%;max-width:720px;">
+    <thead>
+      <tr style="border-bottom:2px solid #444;">
+        <th style="padding:10px 12px;text-align:left;">Item</th>
+        <th style="padding:10px 12px;text-align:right;">Total volume</th>
+        <th style="padding:10px 12px;text-align:right;">Volume CV</th>
+      </tr>
+    </thead>
+    <tbody id="stableVolumeBody">
+      <tr><td colspan="3" style="padding:12px;color:#888;">Run Scan to load.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- STABLE SPREAD (min volume, consistent spread over time) -->
+
+<section style="margin-bottom:32px;">
+  <h2 style="margin-bottom:12px;font-size:1.25rem;">Stable spread</h2>
+  <p style="color:#888;font-size:13px;margin-bottom:12px;">Items with total volume (last 12h) &gt; min and low change in spread (high−low) over the last 12 hours.</p>
+  <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+    <label style="display:flex;align-items:center;gap:6px;"><span style="color:#888;">Min volume</span><input type="number" id="stableSpreadMinVolume" value="100000" min="0" style="width:100px;padding:6px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;"></label>
+    <label style="display:flex;align-items:center;gap:6px;"><span style="color:#888;">Max spread CV</span><input type="number" id="stableSpreadMaxCV" value="0.3" min="0" step="0.05" style="width:70px;padding:6px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;"></label>
+    <button type="button" onclick="loadStableScans()" style="padding:8px 14px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;cursor:pointer;">Scan</button>
+  </div>
+  <table style="border-collapse:collapse;width:100%;max-width:720px;">
+    <thead>
+      <tr style="border-bottom:2px solid #444;">
+        <th style="padding:10px 12px;text-align:left;">Item</th>
+        <th style="padding:10px 12px;text-align:right;">Avg spread</th>
+        <th style="padding:10px 12px;text-align:right;">Spread CV</th>
+      </tr>
+    </thead>
+    <tbody id="stableSpreadBody">
+      <tr><td colspan="3" style="padding:12px;color:#888;">Run Scan to load.</td></tr>
+    </tbody>
+  </table>
+</section>
+
 <!-- CLOSE TRADE MODAL -->
 
 <div id="closeTradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;">
@@ -631,7 +679,105 @@ async function confirmCloseTrade() {
 
 
 
-/* LOAD BUY OPPORTUNITIES */
+const WIKI_HEADERS = {
+  "User-Agent": "OSRS-Price-Tracker/1.0 (https://github.com/jesse594/price-tracker)",
+  "Accept": "application/json"
+};
+
+function stdDev(arr) {
+  if (arr.length === 0) return 0;
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const sq = arr.map(x => (x - mean) ** 2).reduce((a, b) => a + b, 0);
+  return Math.sqrt(sq / arr.length);
+}
+
+async function loadStableScans() {
+  const volTbody = document.getElementById("stableVolumeBody");
+  const spreadTbody = document.getElementById("stableSpreadBody");
+  const minVolTotal = Number(document.getElementById("stableVolMinVolume").value) || 1000000;
+  const maxVolCV = Number(document.getElementById("stableVolMaxCV").value) || 0.35;
+  const minSpreadVol = Number(document.getElementById("stableSpreadMinVolume").value) || 100000;
+  const maxSpreadCV = Number(document.getElementById("stableSpreadMaxCV").value) || 0.3;
+
+  volTbody.innerHTML = "<tr><td colspan=\"3\" style=\"padding:12px;color:#888;\">Loading 12h of 1h data…</td></tr>";
+  spreadTbody.innerHTML = "<tr><td colspan=\"3\" style=\"padding:12px;color:#888;\">Loading 12h of 1h data…</td></tr>";
+
+  try {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const hourSec = 3600;
+    const startOfCurrentHour = Math.floor(nowSec / hourSec) * hourSec;
+    const timestamps = [];
+    for (let i = 0; i < 12; i++) timestamps.push(startOfCurrentHour - i * hourSec);
+
+    const mappingRes = await fetch("https://prices.runescape.wiki/api/v1/osrs/mapping", { headers: WIKI_HEADERS });
+    const mapping = await mappingRes.json();
+    const idToName = {};
+    if (Array.isArray(mapping)) mapping.forEach(m => { if (m && m.id != null && m.name != null) idToName[m.id] = m.name; });
+
+    const hourData = await Promise.all(
+      timestamps.map(ts => fetch("https://prices.runescape.wiki/api/v1/osrs/1h?timestamp=" + ts, { headers: WIKI_HEADERS }).then(r => r.json()))
+    );
+
+    const itemStats = {};
+    for (const res of hourData) {
+      if (!res.data) continue;
+      for (const [idStr, row] of Object.entries(res.data)) {
+        const id = idStr;
+        if (!itemStats[id]) itemStats[id] = { volumes: [], spreads: [] };
+        const vol = (row.highPriceVolume || 0) + (row.lowPriceVolume || 0);
+        itemStats[id].volumes.push(vol);
+        const high = row.avgHighPrice != null ? row.avgHighPrice : null;
+        const low = row.avgLowPrice != null ? row.avgLowPrice : null;
+        if (high != null && low != null) itemStats[id].spreads.push(high - low);
+      }
+    }
+
+    const stableVolume = [];
+    const stableSpread = [];
+    for (const [itemId, s] of Object.entries(itemStats)) {
+      const volumes = s.volumes.filter(v => v > 0);
+      const totalVol = volumes.reduce((a, b) => a + b, 0);
+      const meanVol = volumes.length ? totalVol / volumes.length : 0;
+      const volCV = meanVol > 0 ? stdDev(volumes) / meanVol : 999;
+      const spreads = s.spreads.filter(x => x >= 0);
+      const meanSpread = spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : 0;
+      const spreadCV = meanSpread > 0 ? stdDev(spreads) / meanSpread : 999;
+
+      if (totalVol >= minVolTotal && volCV <= maxVolCV && volumes.length >= 6) {
+        stableVolume.push({ itemId, name: idToName[itemId] || "—", totalVol, volCV });
+      }
+      if (totalVol >= minSpreadVol && spreadCV <= maxSpreadCV && spreads.length >= 6) {
+        stableSpread.push({ itemId, name: idToName[itemId] || "—", meanSpread, spreadCV });
+      }
+    }
+
+    stableVolume.sort((a, b) => b.totalVol - a.totalVol);
+    stableSpread.sort((a, b) => a.spreadCV - b.spreadCV);
+
+    volTbody.innerHTML = stableVolume.length === 0
+      ? "<tr><td colspan=\"3\" style=\"padding:12px;color:#888;\">No items match (try lowering min volume or raising max CV).</td></tr>"
+      : stableVolume.slice(0, 30).map(x => `
+          <tr style="border-bottom:1px solid #333;">
+            <td style="padding:10px 12px;">${(x.name || "—").replace(/</g, "&lt;")}</td>
+            <td style="padding:10px 12px;text-align:right;">${x.totalVol.toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${(x.volCV * 100).toFixed(1)}%</td>
+          </tr>`).join("");
+
+    spreadTbody.innerHTML = stableSpread.length === 0
+      ? "<tr><td colspan=\"3\" style=\"padding:12px;color:#888;\">No items match (try lowering min volume or raising max CV).</td></tr>"
+      : stableSpread.slice(0, 30).map(x => `
+          <tr style="border-bottom:1px solid #333;">
+            <td style="padding:10px 12px;">${(x.name || "—").replace(/</g, "&lt;")}</td>
+            <td style="padding:10px 12px;text-align:right;">${Math.round(x.meanSpread).toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${(x.spreadCV * 100).toFixed(1)}%</td>
+          </tr>`).join("");
+
+    updateLastUpdatedStamp();
+  } catch (e) {
+    volTbody.innerHTML = "<tr><td colspan=\"3\" style=\"padding:12px;color:red;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
+    spreadTbody.innerHTML = "<tr><td colspan=\"3\" style=\"padding:12px;color:red;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
+  }
+}
 
 /* RUN */
 
