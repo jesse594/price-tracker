@@ -160,11 +160,13 @@
     <option value="sell">Sell</option>
   </select>
 
-  <label class="log-field-label" for="log_item_id">Item ID</label>
-  <input id="log_item_id" placeholder="e.g. 21902" style="width:100%;margin-bottom:14px;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;">
-
   <label class="log-field-label" for="log_item_name">Item name</label>
-  <input id="log_item_name" placeholder="e.g. Dragon crossbow" style="width:100%;margin-bottom:14px;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;">
+  <div style="position:relative;">
+    <input id="log_item_name" placeholder="Type to search, then pick from list" autocomplete="off" style="width:100%;margin-bottom:0;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;box-sizing:border-box;">
+    <div id="log_item_suggestions" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:200;max-height:220px;overflow-y:auto;background:#1a1a1a;border:1px solid #444;border-top:none;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,0.4);"></div>
+  </div>
+  <label class="log-field-label" for="log_item_id">Item ID</label>
+  <input id="log_item_id" type="text" placeholder="Filled when you pick above (or type manually)" style="width:100%;margin-bottom:14px;padding:8px 10px;background:#222;color:#eee;border:1px solid #444;font-size:12px;box-sizing:border-box;">
 
   <label class="log-field-label" for="log_price">Price (GP)</label>
   <input id="log_price" type="number" min="0" placeholder="e.g. 741000" style="width:100%;margin-bottom:14px;padding:10px 10px;background:#222;color:#eee;border:1px solid #444;font-size:14px;">
@@ -198,7 +200,39 @@ const SUPABASE_URL =
 const SUPABASE_KEY =
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvYWJycWp1Z3V5Ym12amxxeWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjMxOTgsImV4cCI6MjA4NjgzOTE5OH0.INEv8kOskPZO6fU6827a9XZkkl8Smzqht5_KVDzQ_Ro";
 
+const WIKI_HEADERS = { "User-Agent": "OSRS-Price-Tracker/1.0 (https://github.com/jesse594/price-tracker)", "Accept": "application/json" };
 
+let itemMappingCache = null;
+
+async function getItemMapping() {
+  if (itemMappingCache) return itemMappingCache;
+  const res = await fetch("https://prices.runescape.wiki/api/v1/osrs/mapping", { headers: WIKI_HEADERS });
+  const list = await res.json();
+  itemMappingCache = Array.isArray(list) ? list.filter(m => m && m.id != null && m.name) : [];
+  return itemMappingCache;
+}
+
+function showItemSuggestions(query) {
+  const list = document.getElementById("log_item_suggestions");
+  const nameInput = document.getElementById("log_item_name");
+  if (!query || query.length < 2) { list.innerHTML = ""; list.style.display = "none"; return; }
+  getItemMapping().then(mapping => {
+    const q = query.toLowerCase().trim();
+    const matches = mapping.filter(m => m.name.toLowerCase().includes(q)).slice(0, 20);
+    list.innerHTML = matches.length === 0
+      ? "<div style=\"padding:8px 10px;color:#888;\">No matches</div>"
+      : matches.map(m => `<div class="log-item-suggestion" data-id="${m.id}" data-name="${(m.name || "").replace(/"/g, "&quot;")}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #2a2a2a;">${(m.name || "").replace(/</g, "&lt;")} <span style="color:#666;font-size:11px;">(${m.id})</span></div>`).join("");
+    list.style.display = "block";
+    list.querySelectorAll(".log-item-suggestion").forEach(el => {
+      el.addEventListener("click", () => {
+        nameInput.value = el.getAttribute("data-name");
+        document.getElementById("log_item_id").value = el.getAttribute("data-id");
+        list.innerHTML = "";
+        list.style.display = "none";
+      });
+    });
+  });
+}
 
 /* LOG TRADE FUNCTION */
 
@@ -766,6 +800,25 @@ async function loadStableOpportunities() {
     tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:12px;color:red;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
   }
 }
+
+/* ITEM NAME AUTOCOMPLETE */
+
+(function () {
+  const nameInput = document.getElementById("log_item_name");
+  const suggestionsEl = document.getElementById("log_item_suggestions");
+  if (!nameInput || !suggestionsEl) return;
+  let hideTimer = null;
+  nameInput.addEventListener("input", function () {
+    clearTimeout(hideTimer);
+    showItemSuggestions(this.value);
+  });
+  nameInput.addEventListener("blur", function () {
+    hideTimer = setTimeout(function () { suggestionsEl.style.display = "none"; }, 150);
+  });
+  nameInput.addEventListener("focus", function () {
+    if (this.value.trim().length >= 2) showItemSuggestions(this.value);
+  });
+})();
 
 /* RUN */
 
