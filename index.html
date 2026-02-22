@@ -100,7 +100,7 @@
   <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
     <label style="display:flex;align-items:center;gap:6px;"><span style="color:#888;">Min volume (12h)</span><input type="number" id="stableOppMinVolume" value="100000" min="0" style="width:100px;padding:6px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;"></label>
     <label style="display:flex;align-items:center;gap:6px;"><span style="color:#888;">Max vol CV</span><input type="number" id="stableOppMaxVolCV" value="0.35" min="0" step="0.05" style="width:70px;padding:6px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;"></label>
-    <label style="display:flex;align-items:center;gap:6px;"><span style="color:#888;">Max spread CV</span><input type="number" id="stableOppMaxSpreadCV" value="0.3" min="0" step="0.05" style="width:70px;padding:6px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;"></label>
+    <label style="display:flex;align-items:center;gap:6px;"><span style="color:#888;">Max spread CV</span><input type="number" id="stableOppMaxSpreadCV" value="0.15" min="0" step="0.05" style="width:70px;padding:6px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;"></label>
     <button type="button" onclick="loadStableOpportunities()" style="padding:8px 14px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;cursor:pointer;">Scan</button>
   </div>
   <table style="border-collapse:collapse;width:100%;max-width:900px;">
@@ -431,8 +431,11 @@ async function loadDashboard() {
         const buy =
         trade.buy_price;
 
+        const qty =
+        Math.max(1, parseInt(trade.quantity, 10) || 1);
+
         const profit =
-        current - buy;
+        (current - buy) * qty;
 
         const stopPrice =
         Math.floor(buy * 0.92);
@@ -492,8 +495,11 @@ async function loadDashboard() {
         const sell =
         trade.sell_price;
 
+        const qty =
+        Math.max(1, parseInt(trade.quantity, 10) || 1);
+
         const profit =
-        sell != null ? sell - buy : null;
+        sell != null ? (sell - buy) * qty : null;
 
         const profitColor =
         profit != null && profit >= 0 ? "limegreen" : profit != null ? "red" : "inherit";
@@ -675,7 +681,7 @@ async function loadStableOpportunities() {
   const tbody = document.getElementById("stableOpportunitiesBody");
   const minVol = Number(document.getElementById("stableOppMinVolume").value) || 100000;
   const maxVolCV = Number(document.getElementById("stableOppMaxVolCV").value) || 0.35;
-  const maxSpreadCV = Number(document.getElementById("stableOppMaxSpreadCV").value) || 0.3;
+  const maxSpreadCV = Number(document.getElementById("stableOppMaxSpreadCV").value) || 0.15;
 
   tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:12px;color:#888;\">Loading 12h + latest…</td></tr>";
 
