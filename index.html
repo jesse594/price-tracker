@@ -209,6 +209,27 @@
     </tbody>
   </table>
   <p style="margin-top:8px;font-size:12px;color:#6b7280;">Instabuy/instasell = last known trade (age shows freshness). 1h avg = last hour average; compare to spot for impact.</p>
+
+  <div class="section" style="margin-top:28px;padding-top:24px;border-top:1px solid #e5e2dc;">
+    <h3 class="section-title" style="font-size:1.15rem;margin-bottom:8px;">Experiments</h3>
+    <p style="color:#1a1a1a;font-size:14px;line-height:1.5;margin-bottom:16px;">Goal: see whether the opportunities we find actually hold up. Save a snapshot now, run another scan later, then compare—did margins stick? Did instabuy/instasell move? So we can learn what works without committing to one answer too soon.</p>
+    <p style="color:#6b7280;font-size:13px;font-weight:600;margin-bottom:8px;">How to run one:</p>
+    <ol style="color:#6b7280;font-size:14px;line-height:1.7;margin:0 0 16px 0;padding-left:20px;">
+      <li>Run <strong style="color:#1a1a1a;">Scan</strong> above so you have a fresh list.</li>
+      <li>Click <strong style="color:#1a1a1a;">Save snapshot</strong> to store this moment (saved in your browser).</li>
+      <li>Later—an hour, a day—run <strong style="color:#1a1a1a;">Scan</strong> again.</li>
+      <li>Click <strong style="color:#1a1a1a;">Compare to last snapshot</strong> to see margin and price changes for items that appear in both.</li>
+      <li>Use <strong style="color:#1a1a1a;">Download CSV</strong> or <strong style="color:#1a1a1a;">JSON</strong> if you want to crunch the numbers elsewhere.</li>
+    </ol>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;">
+      <button type="button" id="btnSaveSnapshot" class="btn-outline" disabled>Save snapshot</button>
+      <button type="button" id="btnCompareSnapshot" class="btn-outline">Compare to last snapshot</button>
+      <button type="button" id="btnDownloadCsv" class="btn-outline" disabled>Download CSV</button>
+      <button type="button" id="btnDownloadJson" class="btn-outline" disabled>Download JSON</button>
+      <span id="snapshotCount" style="font-size:12px;color:#6b7280;"></span>
+    </div>
+    <div id="compareResult" style="display:none;margin-top:12px;"></div>
+  </div>
 </section>
 
 </div>
@@ -807,6 +828,128 @@ function timeAgo(unixSec) {
   return Math.floor(hr / 24) + "d ago";
 }
 
+const SNAPSHOT_KEY = "stableOpportunitiesSnapshots";
+const SNAPSHOT_MAX = 30;
+let lastStableOpportunities = null;
+
+function getSnapshots() {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+
+function setSnapshots(list) {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(list));
+    const el = document.getElementById("snapshotCount");
+    if (el) el.textContent = list.length + " snapshot(s) saved";
+  } catch (e) {}
+}
+
+function saveSnapshot() {
+  if (!lastStableOpportunities || lastStableOpportunities.length === 0) return;
+  const list = getSnapshots();
+  list.push({
+    savedAt: Date.now(),
+    opportunities: lastStableOpportunities.map(x => ({
+      itemId: x.itemId,
+      name: x.name,
+      instabuy: x.instabuy,
+      instasell: x.instasell,
+      instabuy1h: x.instabuy1h,
+      instasell1h: x.instasell1h,
+      margin: x.margin,
+      volCV: x.volCV,
+      spreadCV: x.spreadCV
+    }))
+  });
+  if (list.length > SNAPSHOT_MAX) list.splice(0, list.length - SNAPSHOT_MAX);
+  setSnapshots(list);
+}
+
+function compareToLastSnapshot() {
+  const list = getSnapshots();
+  const prev = list.length > 0 ? list[list.length - 1] : null;
+  const container = document.getElementById("compareResult");
+  if (!container) return;
+  if (!prev || !lastStableOpportunities || lastStableOpportunities.length === 0) {
+    container.style.display = "block";
+    container.innerHTML = "<p style=\"color:#6b7280;font-size:14px;\">Run Scan first, and save at least one snapshot, then Scan again and click Compare.</p>";
+    return;
+  }
+  const prevBy = {};
+  prev.opportunities.forEach(o => { prevBy[o.itemId] = o; });
+  const rows = [];
+  lastStableOpportunities.forEach(curr => {
+    const p = prevBy[curr.itemId];
+    if (!p) return;
+    const marginDelta = curr.margin - p.margin;
+    const buyDelta = curr.instabuy - p.instabuy;
+    const sellDelta = curr.instasell - p.instasell;
+    rows.push({
+      name: curr.name,
+      marginThen: p.margin,
+      marginNow: curr.margin,
+      marginDelta,
+      instabuyThen: p.instabuy,
+      instabuyNow: curr.instabuy,
+      buyDelta,
+      instasellThen: p.instasell,
+      instasellNow: curr.instasell,
+      sellDelta
+    });
+  });
+  rows.sort((a, b) => Math.abs(b.marginDelta) - Math.abs(a.marginDelta));
+  const when = new Date(prev.savedAt).toLocaleString();
+  let html = "<p style=\"color:#6b7280;font-size:12px;margin-bottom:8px;\">Comparing current scan vs snapshot saved " + when + ". " + rows.length + " items in both.</p>";
+  if (rows.length === 0) {
+    html += "<p style=\"color:#6b7280;font-size:14px;\">No overlapping items—different filter or market.</p>";
+  } else {
+    html += "<table class=\"dashboard-table\" style=\"max-width:900px;\"><thead><tr>";
+    html += "<th style=\"text-align:left;\">Item</th><th style=\"text-align:right;\">Margin then</th><th style=\"text-align:right;\">Margin now</th><th style=\"text-align:right;\">Δ margin</th>";
+    html += "<th style=\"text-align:right;\">Instabuy then→now</th><th style=\"text-align:right;\">Instasell then→now</th></tr></thead><tbody>";
+    rows.slice(0, 25).forEach(r => {
+      const marginColor = r.marginDelta >= 0 ? "#16a34a" : "#dc2626";
+      html += "<tr style=\"border-bottom:1px solid #eee;\">";
+      html += "<td style=\"padding:10px 12px;\">" + (r.name || "—").replace(/</g, "&lt;") + "</td>";
+      html += "<td style=\"padding:10px 12px;text-align:right;\">" + r.marginThen.toLocaleString() + "</td>";
+      html += "<td style=\"padding:10px 12px;text-align:right;\">" + r.marginNow.toLocaleString() + "</td>";
+      html += "<td style=\"padding:10px 12px;text-align:right;color:" + marginColor + ";\">" + (r.marginDelta >= 0 ? "+" : "") + r.marginDelta.toLocaleString() + "</td>";
+      html += "<td style=\"padding:10px 12px;text-align:right;font-size:12px;color:#6b7280;\">" + r.instabuyThen.toLocaleString() + " → " + r.instabuyNow.toLocaleString() + "</td>";
+      html += "<td style=\"padding:10px 12px;text-align:right;font-size:12px;color:#6b7280;\">" + r.instasellThen.toLocaleString() + " → " + r.instasellNow.toLocaleString() + "</td>";
+      html += "</tr>";
+    });
+    html += "</tbody></table>";
+  }
+  container.innerHTML = html;
+  container.style.display = "block";
+}
+
+function downloadCsv() {
+  if (!lastStableOpportunities || lastStableOpportunities.length === 0) return;
+  const headers = ["itemId", "name", "instabuy", "instasell", "instabuy1h", "instasell1h", "margin", "volCV", "spreadCV"];
+  const rows = lastStableOpportunities.map(o => headers.map(h => (o[h] != null ? o[h] : "")).join(","));
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "stable-opportunities-" + new Date().toISOString().slice(0, 10) + ".csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function downloadJson() {
+  if (!lastStableOpportunities || lastStableOpportunities.length === 0) return;
+  const payload = { scannedAt: Date.now(), opportunities: lastStableOpportunities };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "stable-opportunities-" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 async function loadStableOpportunities() {
   const tbody = document.getElementById("stableOpportunitiesBody");
   const minVol = Number(document.getElementById("stableOppMinVolume").value) || 100000;
@@ -889,6 +1032,14 @@ async function loadStableOpportunities() {
     }
 
     opportunities.sort((a, b) => b.margin - a.margin);
+    lastStableOpportunities = opportunities;
+
+    const btnSave = document.getElementById("btnSaveSnapshot");
+    const btnCsv = document.getElementById("btnDownloadCsv");
+    const btnJson = document.getElementById("btnDownloadJson");
+    if (btnSave) btnSave.disabled = opportunities.length === 0;
+    if (btnCsv) btnCsv.disabled = opportunities.length === 0;
+    if (btnJson) btnJson.disabled = opportunities.length === 0;
 
     tbody.innerHTML = opportunities.length === 0
       ? "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#6b7280;\">No items match (try lowering min volume or raising max CV).</td></tr>"
@@ -917,6 +1068,22 @@ async function loadStableOpportunities() {
     tbody.innerHTML = "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#dc2626;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
   }
 }
+
+/* EXPERIMENT BUTTONS */
+
+(function () {
+  const btnSave = document.getElementById("btnSaveSnapshot");
+  const btnCompare = document.getElementById("btnCompareSnapshot");
+  const btnCsv = document.getElementById("btnDownloadCsv");
+  const btnJson = document.getElementById("btnDownloadJson");
+  if (btnSave) btnSave.addEventListener("click", saveSnapshot);
+  if (btnCompare) btnCompare.addEventListener("click", compareToLastSnapshot);
+  if (btnCsv) btnCsv.addEventListener("click", downloadCsv);
+  if (btnJson) btnJson.addEventListener("click", downloadJson);
+  const list = getSnapshots();
+  const countEl = document.getElementById("snapshotCount");
+  if (countEl) countEl.textContent = list.length + " snapshot(s) saved";
+})();
 
 /* ITEM NAME AUTOCOMPLETE */
 
