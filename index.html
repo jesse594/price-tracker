@@ -141,6 +141,7 @@
         <th style="text-align:left;">Item</th>
         <th style="text-align:left;">Date</th>
         <th style="text-align:right;">Buy Price</th>
+        <th style="text-align:right;">Total price</th>
         <th style="text-align:right;">Current Price</th>
         <th style="text-align:right;">Profit / Loss</th>
         <th style="text-align:right;">Signal</th>
@@ -149,7 +150,7 @@
     </thead>
     <tbody id="openTradesBody">
       <tr>
-        <td colspan="7" style="padding:14px 16px;color:#6b7280;">Loading…</td>
+        <td colspan="8" style="padding:14px 16px;color:#6b7280;">Loading…</td>
       </tr>
     </tbody>
   </table>
@@ -165,13 +166,15 @@
         <th style="text-align:left;">Item</th>
         <th style="text-align:left;">Date</th>
         <th style="text-align:right;">Buy Price</th>
+        <th style="text-align:right;">Total buy</th>
         <th style="text-align:right;">Sell Price</th>
+        <th style="text-align:right;">Total sell</th>
         <th style="text-align:right;">Profit / Loss</th>
       </tr>
     </thead>
     <tbody id="closedTradesBody">
       <tr>
-        <td colspan="5" style="padding:14px 16px;color:#6b7280;">Loading…</td>
+        <td colspan="7" style="padding:14px 16px;color:#6b7280;">Loading…</td>
       </tr>
     </tbody>
   </table>
@@ -194,15 +197,18 @@
         <th style="text-align:left;">Item</th>
         <th style="text-align:right;">Instabuy</th>
         <th style="text-align:right;">Instasell</th>
+        <th style="text-align:right;">1h avg buy</th>
+        <th style="text-align:right;">1h avg sell</th>
         <th style="text-align:right;">Margin</th>
         <th style="text-align:right;">Vol CV</th>
         <th style="text-align:right;">Spread CV</th>
       </tr>
     </thead>
     <tbody id="stableOpportunitiesBody">
-      <tr><td colspan="6" style="padding:14px 16px;color:#6b7280;">Run Scan to load.</td></tr>
+      <tr><td colspan="8" style="padding:14px 16px;color:#6b7280;">Run Scan to load.</td></tr>
     </tbody>
   </table>
+  <p style="margin-top:8px;font-size:12px;color:#6b7280;">Instabuy/instasell = last known trade (age shows freshness). 1h avg = last hour average; compare to spot for impact.</p>
 </section>
 
 </div>
@@ -522,7 +528,7 @@ async function loadDashboard() {
     if (openTrades.length === 0) {
 
       openTbody.innerHTML =
-      `<tr><td colspan="7" style="padding:14px 16px;color:#6b7280;">No open trades</td></tr>`;
+      `<tr><td colspan="8" style="padding:14px 16px;color:#6b7280;">No open trades</td></tr>`;
 
     } else {
 
@@ -573,10 +579,12 @@ async function loadDashboard() {
         const itemNameEsc =
         (trade.item_name || "").replace(/"/g, "&quot;");
 
+        const totalPrice = buy * qty;
         return `<tr style="border-bottom:1px solid #eee;">
             <td style="padding:14px 16px;">${trade.item_name}</td>
             <td style="padding:14px 16px;">${formatTradeDate(trade.buy_time)}</td>
             <td style="padding:14px 16px;text-align:right;">${buy.toLocaleString()}</td>
+            <td style="padding:14px 16px;text-align:right;">${totalPrice.toLocaleString()}</td>
             <td style="padding:14px 16px;text-align:right;">${current.toLocaleString()}</td>
             <td style="padding:14px 16px;text-align:right;color:${profitColor};">${profit.toLocaleString()}</td>
             <td style="padding:14px 16px;text-align:right;">Stop: ${stopPrice.toLocaleString()}<br><span style="color:${signalColor};font-weight:bold;">${signal}</span></td>
@@ -593,7 +601,7 @@ async function loadDashboard() {
     if (closedTrades.length === 0) {
 
       closedTbody.innerHTML =
-      `<tr><td colspan="5" style="padding:14px 16px;color:#6b7280;">No closed trades</td></tr>`;
+      `<tr><td colspan="7" style="padding:14px 16px;color:#6b7280;">No closed trades</td></tr>`;
 
     } else {
 
@@ -618,12 +626,16 @@ async function loadDashboard() {
         const profitStr =
         profit != null ? profit.toLocaleString() : "—";
 
+        const totalBuy = buy * qty;
+        const totalSell = sell != null ? sell * qty : null;
         return `
           <tr style="border-bottom:1px solid #eee;">
             <td style="padding:14px 16px;">${trade.item_name}</td>
             <td style="padding:14px 16px;">${formatTradeDate(trade.buy_time)}</td>
             <td style="padding:14px 16px;text-align:right;">${buy.toLocaleString()}</td>
+            <td style="padding:14px 16px;text-align:right;">${totalBuy.toLocaleString()}</td>
             <td style="padding:14px 16px;text-align:right;">${sell != null ? sell.toLocaleString() : "—"}</td>
+            <td style="padding:14px 16px;text-align:right;">${totalSell != null ? totalSell.toLocaleString() : "—"}</td>
             <td style="padding:14px 16px;text-align:right;color:${profitColor};">${profitStr}</td>
           </tr>
         `;
@@ -637,10 +649,10 @@ async function loadDashboard() {
   catch {
 
     openTbody.innerHTML =
-    `<tr><td colspan="7" style="padding:14px 16px;color:#dc2626;">Error loading trades</td></tr>`;
+    `<tr><td colspan="8" style="padding:14px 16px;color:#dc2626;">Error loading trades</td></tr>`;
 
     closedTbody.innerHTML =
-    `<tr><td colspan="5" style="padding:14px 16px;color:#dc2626;">Error loading trades</td></tr>`;
+    `<tr><td colspan="7" style="padding:14px 16px;color:#dc2626;">Error loading trades</td></tr>`;
 
   }
 
@@ -783,13 +795,25 @@ function stdDev(arr) {
   return Math.sqrt(sq / arr.length);
 }
 
+function timeAgo(unixSec) {
+  if (unixSec == null || !unixSec) return "—";
+  const sec = Math.floor(Date.now() / 1000) - Number(unixSec);
+  if (sec < 30) return "just now";
+  if (sec < 60) return sec + "s ago";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return min + "m ago";
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + "h ago";
+  return Math.floor(hr / 24) + "d ago";
+}
+
 async function loadStableOpportunities() {
   const tbody = document.getElementById("stableOpportunitiesBody");
   const minVol = Number(document.getElementById("stableOppMinVolume").value) || 100000;
   const maxVolCV = Number(document.getElementById("stableOppMaxVolCV").value) || 0.35;
   const maxSpreadCV = Number(document.getElementById("stableOppMaxSpreadCV").value) || 0.15;
 
-  tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:14px 16px;color:#6b7280;\">Loading 12h + latest…</td></tr>";
+  tbody.innerHTML = "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#6b7280;\">Loading 12h + latest…</td></tr>";
 
   try {
     const nowSec = Math.floor(Date.now() / 1000);
@@ -825,6 +849,7 @@ async function loadStableOpportunities() {
 
     const opportunities = [];
     const latestData = (latest && latest.data) ? latest.data : {};
+    const recent1h = (hourData && hourData[0] && hourData[0].data) ? hourData[0].data : {};
     for (const [itemId, s] of Object.entries(itemStats)) {
       const volumes = s.volumes.filter(v => v > 0);
       const totalVol = volumes.reduce((a, b) => a + b, 0);
@@ -841,12 +866,22 @@ async function loadStableOpportunities() {
       const instasell = cur && cur.low != null ? cur.low : null;
       if (instabuy == null || instasell == null) continue;
 
+      const highTime = cur && cur.highTime != null ? cur.highTime : null;
+      const lowTime = cur && cur.lowTime != null ? cur.lowTime : null;
+      const h1 = recent1h[itemId];
+      const instabuy1h = h1 && h1.avgHighPrice != null ? h1.avgHighPrice : null;
+      const instasell1h = h1 && h1.avgLowPrice != null ? h1.avgLowPrice : null;
+
       const margin = instabuy - instasell;
       opportunities.push({
         itemId,
         name: idToName[itemId] || "—",
         instabuy,
         instasell,
+        highTime,
+        lowTime,
+        instabuy1h,
+        instasell1h,
         margin,
         volCV,
         spreadCV
@@ -856,20 +891,30 @@ async function loadStableOpportunities() {
     opportunities.sort((a, b) => b.margin - a.margin);
 
     tbody.innerHTML = opportunities.length === 0
-      ? "<tr><td colspan=\"6\" style=\"padding:14px 16px;color:#6b7280;\">No items match (try lowering min volume or raising max CV).</td></tr>"
-      : opportunities.slice(0, 40).map(x => `
+      ? "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#6b7280;\">No items match (try lowering min volume or raising max CV).</td></tr>"
+      : opportunities.slice(0, 40).map(x => {
+          const buyAge = timeAgo(x.highTime);
+          const sellAge = timeAgo(x.lowTime);
+          const buyStale = buyAge !== "just now" && buyAge !== "—" && buyAge.indexOf("s") === -1;
+          const sellStale = sellAge !== "just now" && sellAge !== "—" && sellAge.indexOf("s") === -1;
+          const buyAgeStyle = buyStale ? "font-size:11px;color:#6b7280;" : "font-size:11px;color:#6b7280;";
+          const sellAgeStyle = sellStale ? "font-size:11px;color:#6b7280;" : "font-size:11px;color:#6b7280;";
+          return `
           <tr style="border-bottom:1px solid #eee;">
             <td style="padding:14px 16px;">${(x.name || "—").replace(/</g, "&lt;")}</td>
-            <td style="padding:14px 16px;text-align:right;">${x.instabuy.toLocaleString()}</td>
-            <td style="padding:14px 16px;text-align:right;">${x.instasell.toLocaleString()}</td>
+            <td style="padding:14px 16px;text-align:right;"><span>${x.instabuy.toLocaleString()}</span><br><span style="${buyAgeStyle}">${buyAge}</span></td>
+            <td style="padding:14px 16px;text-align:right;"><span>${x.instasell.toLocaleString()}</span><br><span style="${sellAgeStyle}">${sellAge}</span></td>
+            <td style="padding:14px 16px;text-align:right;">${x.instabuy1h != null ? x.instabuy1h.toLocaleString() : "—"}</td>
+            <td style="padding:14px 16px;text-align:right;">${x.instasell1h != null ? x.instasell1h.toLocaleString() : "—"}</td>
             <td style="padding:14px 16px;text-align:right;">${x.margin.toLocaleString()}</td>
             <td style="padding:14px 16px;text-align:right;">${(x.volCV * 100).toFixed(1)}%</td>
             <td style="padding:14px 16px;text-align:right;">${(x.spreadCV * 100).toFixed(1)}%</td>
-          </tr>`).join("");
+          </tr>`;
+        }).join("");
 
     updateLastUpdatedStamp();
   } catch (e) {
-    tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:14px 16px;color:#dc2626;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
+    tbody.innerHTML = "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#dc2626;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
   }
 }
 
