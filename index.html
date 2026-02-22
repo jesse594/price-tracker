@@ -180,61 +180,33 @@
   </table>
 </section>
 
-<!-- STABLE OPPORTUNITIES -->
+<!-- SPREAD WATCH: COAL, STEEL CANNONBALL, SEER'S RING -->
 
 <section class="section">
-  <h2 class="section-title">Stable opportunities</h2>
-  <p class="section-desc">Items with stable volume and stable spread (last 12h). Instabuy = price to buy now; Instasell = price you get selling now.</p>
-  <div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
-    <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:#6b7280;"><span>Min volume (12h)</span><input type="number" id="stableOppMinVolume" value="100000" min="0" class="form-input" style="width:100px;"></label>
-    <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:#6b7280;"><span>Max vol CV</span><input type="number" id="stableOppMaxVolCV" value="0.35" min="0" step="0.05" class="form-input" style="width:70px;"></label>
-    <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:#6b7280;"><span>Max spread CV</span><input type="number" id="stableOppMaxSpreadCV" value="0.15" min="0" step="0.05" class="form-input" style="width:70px;"></label>
-    <button type="button" onclick="loadStableOpportunities()" class="btn-outline">Scan</button>
+  <h2 class="section-title">Spread watch</h2>
+  <p class="section-desc">Coal, Steel cannonball, Seer's ring. Instabuy/instasell with age; spread, change in spread, volume, change in volume (last 12h).</p>
+  <div style="margin-bottom:12px;">
+    <button type="button" onclick="loadStableOpportunities()" class="btn-outline">Load</button>
   </div>
-  <table class="dashboard-table" style="max-width:900px;">
+  <table class="dashboard-table" style="max-width:960px;">
     <thead>
       <tr>
         <th style="text-align:left;">Item</th>
         <th style="text-align:right;">Instabuy</th>
         <th style="text-align:right;">Instasell</th>
-        <th style="text-align:right;">1h avg buy</th>
-        <th style="text-align:right;">1h avg sell</th>
         <th style="text-align:right;">Margin</th>
-        <th style="text-align:right;">Vol CV</th>
-        <th style="text-align:right;">Spread CV</th>
+        <th style="text-align:right;">Spread</th>
+        <th style="text-align:right;">Change in spread</th>
+        <th style="text-align:right;">Volume (12h)</th>
+        <th style="text-align:right;">Change in volume</th>
       </tr>
     </thead>
     <tbody id="stableOpportunitiesBody">
-      <tr><td colspan="8" style="padding:14px 16px;color:#6b7280;">Run Scan to load.</td></tr>
+      <tr><td colspan="8" style="padding:14px 16px;color:#6b7280;">Click Load.</td></tr>
     </tbody>
   </table>
-  <p style="margin-top:8px;font-size:12px;color:#6b7280;">Instabuy/instasell = last known trade (age shows freshness). 1h avg = last hour average; compare to spot for impact.</p>
+  <p style="margin-top:8px;font-size:12px;color:#6b7280;">Instabuy/instasell = last known trade; age under each. Spread = high−low. Change = how much it varies over 12h (%).</p>
 
-</section>
-
-<!-- ITEM STATS (pipeline summary) -->
-
-<section class="section">
-  <h2 class="section-title">Item stats</h2>
-  <p class="section-desc">Same numbers as the Python pipeline: avg spread %, z-score, how often price is way off average (Z&gt;2 / Z&lt;-2), and MA crossovers. Uses last ~365 points of 5m data from the Wiki.</p>
-  <div style="margin-bottom:12px;">
-    <button type="button" onclick="loadPipelineStats()" class="btn-outline">Load stats</button>
-  </div>
-  <table class="dashboard-table" style="max-width:720px;">
-    <thead>
-      <tr>
-        <th style="text-align:left;">Item</th>
-        <th style="text-align:right;">Avg spread %</th>
-        <th style="text-align:right;">Avg z</th>
-        <th style="text-align:right;">Z&gt;2 %</th>
-        <th style="text-align:right;">Z&lt;-2 %</th>
-        <th style="text-align:right;">Crossovers</th>
-      </tr>
-    </thead>
-    <tbody id="pipelineStatsBody">
-      <tr><td colspan="6" style="padding:14px 16px;color:#6b7280;">Click Load stats.</td></tr>
-    </tbody>
-  </table>
 </section>
 
 </div>
@@ -833,12 +805,10 @@ function timeAgo(unixSec) {
   return Math.floor(hr / 24) + "d ago";
 }
 
+var SPREAD_WATCH_IDS = [2, 453, 2570]; // Steel cannonball, Coal, Seer's ring
+
 async function loadStableOpportunities() {
   const tbody = document.getElementById("stableOpportunitiesBody");
-  const minVol = Number(document.getElementById("stableOppMinVolume").value) || 100000;
-  const maxVolCV = Number(document.getElementById("stableOppMaxVolCV").value) || 0.35;
-  const maxSpreadCV = Number(document.getElementById("stableOppMaxSpreadCV").value) || 0.15;
-
   tbody.innerHTML = "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#6b7280;\">Loading 12h + latest…</td></tr>";
 
   try {
@@ -873,32 +843,31 @@ async function loadStableOpportunities() {
       }
     }
 
-    const opportunities = [];
     const latestData = (latest && latest.data) ? latest.data : {};
-    const recent1h = (hourData && hourData[0] && hourData[0].data) ? hourData[0].data : {};
-    for (const [itemId, s] of Object.entries(itemStats)) {
-      const volumes = s.volumes.filter(v => v > 0);
-      const totalVol = volumes.reduce((a, b) => a + b, 0);
-      const meanVol = volumes.length ? totalVol / volumes.length : 0;
-      const volCV = meanVol > 0 ? stdDev(volumes) / meanVol : 999;
-      const spreads = s.spreads.filter(x => x >= 0);
-      const meanSpread = spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : 0;
-      const spreadCV = meanSpread > 0 ? stdDev(spreads) / meanSpread : 999;
-
-      if (totalVol < minVol || volCV > maxVolCV || spreadCV > maxSpreadCV || volumes.length < 6 || spreads.length < 6) continue;
-
+    const opportunities = [];
+    for (let i = 0; i < SPREAD_WATCH_IDS.length; i++) {
+      const itemId = String(SPREAD_WATCH_IDS[i]);
+      const s = itemStats[itemId];
       const cur = latestData[itemId];
       const instabuy = cur && cur.high != null ? cur.high : null;
       const instasell = cur && cur.low != null ? cur.low : null;
-      if (instabuy == null || instasell == null) continue;
-
       const highTime = cur && cur.highTime != null ? cur.highTime : null;
       const lowTime = cur && cur.lowTime != null ? cur.lowTime : null;
-      const h1 = recent1h[itemId];
-      const instabuy1h = h1 && h1.avgHighPrice != null ? h1.avgHighPrice : null;
-      const instasell1h = h1 && h1.avgLowPrice != null ? h1.avgLowPrice : null;
 
-      const margin = instabuy - instasell;
+      let totalVol = 0, volCV = null, meanSpread = null, spreadCV = null;
+      if (s) {
+        const volumes = s.volumes.filter(v => v > 0);
+        totalVol = volumes.reduce((a, b) => a + b, 0);
+        const meanVol = volumes.length ? totalVol / volumes.length : 0;
+        volCV = meanVol > 0 ? stdDev(volumes) / meanVol : null;
+        const spreads = s.spreads.filter(x => x >= 0);
+        meanSpread = spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null;
+        spreadCV = meanSpread != null && meanSpread > 0 ? stdDev(spreads) / meanSpread : null;
+      }
+
+      const margin = (instabuy != null && instasell != null) ? instabuy - instasell : null;
+      const spread = margin; // current spread = instabuy - instasell
+
       opportunities.push({
         itemId,
         name: idToName[itemId] || "—",
@@ -906,156 +875,33 @@ async function loadStableOpportunities() {
         instasell,
         highTime,
         lowTime,
-        instabuy1h,
-        instasell1h,
         margin,
+        spread,
+        totalVol,
         volCV,
         spreadCV
       });
     }
 
-    opportunities.sort((a, b) => b.margin - a.margin);
-
-    tbody.innerHTML = opportunities.length === 0
-      ? "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#6b7280;\">No items match (try lowering min volume or raising max CV).</td></tr>"
-      : opportunities.slice(0, 40).map(x => {
-          const buyAge = timeAgo(x.highTime);
-          const sellAge = timeAgo(x.lowTime);
-          const buyStale = buyAge !== "just now" && buyAge !== "—" && buyAge.indexOf("s") === -1;
-          const sellStale = sellAge !== "just now" && sellAge !== "—" && sellAge.indexOf("s") === -1;
-          const buyAgeStyle = buyStale ? "font-size:11px;color:#6b7280;" : "font-size:11px;color:#6b7280;";
-          const sellAgeStyle = sellStale ? "font-size:11px;color:#6b7280;" : "font-size:11px;color:#6b7280;";
-          return `
-          <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:14px 16px;">${(x.name || "—").replace(/</g, "&lt;")}</td>
-            <td style="padding:14px 16px;text-align:right;"><span>${x.instabuy.toLocaleString()}</span><br><span style="${buyAgeStyle}">${buyAge}</span></td>
-            <td style="padding:14px 16px;text-align:right;"><span>${x.instasell.toLocaleString()}</span><br><span style="${sellAgeStyle}">${sellAge}</span></td>
-            <td style="padding:14px 16px;text-align:right;">${x.instabuy1h != null ? x.instabuy1h.toLocaleString() : "—"}</td>
-            <td style="padding:14px 16px;text-align:right;">${x.instasell1h != null ? x.instasell1h.toLocaleString() : "—"}</td>
-            <td style="padding:14px 16px;text-align:right;">${x.margin.toLocaleString()}</td>
-            <td style="padding:14px 16px;text-align:right;">${(x.volCV * 100).toFixed(1)}%</td>
-            <td style="padding:14px 16px;text-align:right;">${(x.spreadCV * 100).toFixed(1)}%</td>
-          </tr>`;
-        }).join("");
+    tbody.innerHTML = opportunities.map(x => {
+      const buyAge = timeAgo(x.highTime);
+      const sellAge = timeAgo(x.lowTime);
+      const ageStyle = "font-size:11px;color:#6b7280;";
+      return "<tr style=\"border-bottom:1px solid #eee;\">" +
+        "<td style=\"padding:14px 16px;\">" + (x.name || "—").replace(/</g, "&lt;") + "</td>" +
+        "<td style=\"padding:14px 16px;text-align:right;\"><span>" + (x.instabuy != null ? x.instabuy.toLocaleString() : "—") + "</span><br><span style=\"" + ageStyle + "\">" + buyAge + "</span></td>" +
+        "<td style=\"padding:14px 16px;text-align:right;\"><span>" + (x.instasell != null ? x.instasell.toLocaleString() : "—") + "</span><br><span style=\"" + ageStyle + "\">" + sellAge + "</span></td>" +
+        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.margin != null ? x.margin.toLocaleString() : "—") + "</td>" +
+        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.spread != null ? x.spread.toLocaleString() : "—") + "</td>" +
+        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.spreadCV != null ? (x.spreadCV * 100).toFixed(1) + "%" : "—") + "</td>" +
+        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.totalVol ? x.totalVol.toLocaleString() : "—") + "</td>" +
+        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.volCV != null ? (x.volCV * 100).toFixed(1) + "%" : "—") + "</td>" +
+        "</tr>";
+    }).join("");
 
     updateLastUpdatedStamp();
   } catch (e) {
     tbody.innerHTML = "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#dc2626;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
-  }
-}
-
-/* PIPELINE STATS (same logic as osrs-data Python scripts) */
-
-var PIPELINE_ITEM_IDS = [2, 453, 314, 565, 21902];
-
-function rollingMean(arr, w) {
-  var out = [];
-  for (var i = 0; i < arr.length; i++) {
-    if (i < w - 1) { out.push(null); continue; }
-    var sum = 0, n = 0;
-    for (var j = i - w + 1; j <= i; j++) if (arr[j] != null) { sum += arr[j]; n++; }
-    out.push(n ? sum / n : null);
-  }
-  return out;
-}
-
-function rollingStd(arr, w) {
-  var out = [];
-  for (var i = 0; i < arr.length; i++) {
-    if (i < w - 1) { out.push(null); continue; }
-    var slice = [];
-    for (var j = i - w + 1; j <= i; j++) if (arr[j] != null) slice.push(arr[j]);
-    if (slice.length < 2) { out.push(null); continue; }
-    var m = slice.reduce(function(a,b){ return a+b; }, 0) / slice.length;
-    var v = slice.reduce(function(acc, x) { return acc + (x - m) * (x - m); }, 0) / slice.length;
-    out.push(v > 0 ? Math.sqrt(v) : 0);
-  }
-  return out;
-}
-
-function pipelineStatsFromSeries(data) {
-  if (!data || data.length === 0) return null;
-  var high = [], low = [];
-  for (var i = 0; i < data.length; i++) {
-    var h = data[i].avgHighPrice != null ? data[i].avgHighPrice : data[i].high;
-    var l = data[i].avgLowPrice != null ? data[i].avgLowPrice : data[i].low;
-    if (h == null || l == null) continue;
-    high.push(h);
-    low.push(l);
-  }
-  if (high.length === 0) return null;
-  var mid = [];
-  for (var i = 0; i < high.length; i++) mid.push((high[i] + low[i]) / 2);
-  var spreadPct = [];
-  for (var i = 0; i < high.length; i++)
-    spreadPct.push((high[i] + low[i]) > 0 ? 100 * (high[i] - low[i]) / mid[i] : null);
-  var ma30 = rollingMean(mid, 30);
-  var ma90 = rollingMean(mid, 90);
-  var std30 = rollingStd(mid, 30);
-  var z = [];
-  for (var i = 0; i < mid.length; i++) {
-    if (ma30[i] != null && std30[i] != null && std30[i] > 0)
-      z.push((mid[i] - ma30[i]) / std30[i]);
-    else
-      z.push(null);
-  }
-  var zValid = z.filter(function(x) { return x != null; });
-  var avgSpreadPct = spreadPct.filter(function(x){ return x != null; }).reduce(function(a,b){ return a+b; }, 0) / (spreadPct.filter(function(x){ return x != null; }).length || 1);
-  var avgZ = zValid.length ? zValid.reduce(function(a,b){ return a+b; }, 0) / zValid.length : 0;
-  var above2 = zValid.filter(function(x){ return x > 2; }).length;
-  var below2 = zValid.filter(function(x){ return x < -2; }).length;
-  var nz = zValid.length;
-  var crossovers = 0;
-  for (var i = 1; i < ma30.length && i < ma90.length; i++) {
-    if (ma30[i] != null && ma90[i] != null && ma30[i-1] != null && ma90[i-1] != null)
-      if ((ma30[i-1] - ma90[i-1]) * (ma30[i] - ma90[i]) < 0) crossovers++;
-  }
-  return {
-    avgSpreadPct: avgSpreadPct,
-    avgZ: avgZ,
-    pctAbove2: nz ? (above2 / nz) * 100 : 0,
-    pctBelow2: nz ? (below2 / nz) * 100 : 0,
-    crossovers: crossovers
-  };
-}
-
-async function loadPipelineStats() {
-  var tbody = document.getElementById("pipelineStatsBody");
-  if (!tbody) return;
-  tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:14px 16px;color:#6b7280;\">Loading…</td></tr>";
-  try {
-    var mappingRes = await fetch("https://prices.runescape.wiki/api/v1/osrs/mapping", { headers: WIKI_HEADERS });
-    var mapping = await mappingRes.json();
-    var idToName = {};
-    if (Array.isArray(mapping))
-      mapping.forEach(function(m) { if (m && m.id != null && m.name) idToName[m.id] = m.name; });
-    var results = [];
-    for (var i = 0; i < PIPELINE_ITEM_IDS.length; i++) {
-      var id = PIPELINE_ITEM_IDS[i];
-      var r = await fetch("https://prices.runescape.wiki/api/v1/osrs/timeseries?id=" + id + "&timestep=5m", { headers: WIKI_HEADERS });
-      var json = await r.json();
-      var data = json.data || json;
-      var stats = pipelineStatsFromSeries(data);
-      if (stats)
-        results.push({ id: id, name: idToName[id] || ("Item " + id), stats: stats });
-    }
-    if (results.length === 0) {
-      tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:14px 16px;color:#6b7280;\">No data.</td></tr>";
-      return;
-    }
-    tbody.innerHTML = results.map(function(x) {
-      var s = x.stats;
-      return "<tr style=\"border-bottom:1px solid #eee;\">" +
-        "<td style=\"padding:14px 16px;\">" + (x.name || "").replace(/</g, "&lt;") + "</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + s.avgSpreadPct.toFixed(2) + "%</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + s.avgZ.toFixed(2) + "</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + s.pctAbove2.toFixed(1) + "%</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + s.pctBelow2.toFixed(1) + "%</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + s.crossovers + "</td>" +
-        "</tr>";
-    }).join("");
-  } catch (e) {
-    tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:14px 16px;color:#dc2626;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
   }
 }
 
