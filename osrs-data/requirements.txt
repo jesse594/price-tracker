@@ -1,0 +1,2 @@
+# Minimal deps for OSRS GE data pipeline. No frameworks.
+requests>=2.28.0
