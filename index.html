@@ -191,7 +191,7 @@
     <input id="corr_item_3" class="form-input" placeholder="Item 3 (name or ID)" value="Seer's ring" style="width:160px;">
     <input id="corr_item_4" class="form-input" placeholder="Item 4 (name or ID)" value="Nightmare staff" style="width:160px;">
     <input id="corr_item_5" class="form-input" placeholder="Item 5 (name or ID)" style="width:160px;">
-    <button type="button" onclick="loadCorrelationGraphs()" class="btn-outline">Load graphs</button>
+    <button type="button" id="loadCorrelationBtn" class="btn-outline">Load graphs</button>
   </div>
   <div id="correlationChartsContainer" style="display:grid;gap:24px;">
     <p style="color:#6b7280;font-size:14px;">Enter items and click Load graphs.</p>
@@ -817,6 +817,8 @@ async function resolveItemIds() {
 
 async function loadCorrelationGraphs() {
   const container = document.getElementById("correlationChartsContainer");
+  const btn = document.getElementById("loadCorrelationBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
   container.innerHTML = "<p style=\"color:#6b7280;\">Resolving items and loading 24h data…</p>";
   correlationCharts.forEach(c => { if (c) c.destroy(); });
   correlationCharts = [];
@@ -825,6 +827,7 @@ async function loadCorrelationGraphs() {
     const items = await resolveItemIds();
     if (items.length === 0) {
       container.innerHTML = "<p style=\"color:#6b7280;\">Enter at least one item (name or ID) and click Load graphs.</p>";
+      if (btn) { btn.disabled = false; btn.textContent = "Load graphs"; }
       return;
     }
 
@@ -904,9 +907,17 @@ async function loadCorrelationGraphs() {
 
     updateLastUpdatedStamp();
   } catch (e) {
-    container.innerHTML = "<p style=\"color:#dc2626;\">Error: " + (e && e.message ? e.message : "network") + "</p>";
+    const errMsg = (e && (e.message || e.toString)) ? (e.message || e.toString()) : "Unknown error";
+    container.innerHTML = "<p style=\"color:#dc2626;\">Error: " + String(errMsg).replace(/</g, "&lt;") + "</p>";
   }
+  if (btn) { btn.disabled = false; btn.textContent = "Load graphs"; }
 }
+
+/* BIND LOAD GRAPHS BUTTON */
+(function () {
+  var btn = document.getElementById("loadCorrelationBtn");
+  if (btn) btn.addEventListener("click", function () { loadCorrelationGraphs(); });
+})();
 
 /* ITEM NAME AUTOCOMPLETE */
 
