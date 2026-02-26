@@ -135,7 +135,7 @@
 
 <section class="section">
   <h2 class="section-title">Correlation: spread, volume &amp; time vs price</h2>
-  <p class="section-desc">Pick up to 5 items (edit above and refresh to change). Three line charts: price over time, spread over time, volume over time (last 24h). One line per item.</p>
+  <p class="section-desc">First 4 items get 12 graphs: for each item, spread vs price, volume vs price, time vs price (x-axis = price). Last 24h.</p>
   <div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
     <input id="corr_item_1" class="form-input" placeholder="Item 1 (name or ID)" value="Coal" style="width:160px;">
     <input id="corr_item_2" class="form-input" placeholder="Item 2 (name or ID)" value="Steel cannonball" style="width:160px;">
@@ -495,51 +495,51 @@ async function loadCorrelationGraphs() {
       });
     }
 
-    var hourLabels = [];
-    var n = 24;
-    for (var i = 0; i < n; i++) hourLabels.push(i + ":00");
-
-    var lineColors = ["#22c55e", "#a855f7", "#ff8c42", "#3b82f6", "#ec4899"];
-    var datasetsPrice = [], datasetsSpread = [], datasetsVolume = [];
-    items.forEach(function (it, idx) {
-      var pts = itemSeries[it.id].points;
-      if (pts.length === 0) return;
+    var lineColors = ["#22c55e", "#a855f7", "#ff8c42", "#3b82f6"];
+    var items4 = items.slice(0, 4);
+    var chartHtml = "";
+    for (var i = 0; i < items4.length; i++) {
+      var it = items4[i];
       var itemName = (it.name || "ID " + it.id).replace(/</g, "");
-      var color = lineColors[idx % lineColors.length];
-      var priceLine = [], spreadLine = [], volumeLine = [];
-      for (var i = 0; i < pts.length; i++) {
-        priceLine.push(pts[i].price);
-        spreadLine.push(pts[i].spread != null ? pts[i].spread : null);
-        volumeLine.push(pts[i].volume);
-      }
-      datasetsPrice.push({ label: itemName, data: priceLine, borderColor: color, backgroundColor: color + "20", fill: false, tension: 0.2 });
-      datasetsSpread.push({ label: itemName, data: spreadLine, borderColor: color, backgroundColor: color + "20", fill: false, tension: 0.2 });
-      datasetsVolume.push({ label: itemName, data: volumeLine, borderColor: color, backgroundColor: color + "20", fill: false, tension: 0.2 });
-    });
+      var base = i * 3;
+      chartHtml += "<div style=\"width:100%;margin-bottom:32px;\"><h3 style=\"margin:0 0 8px 0;font-size:1rem;color:#1a1a1a;\">" + itemName + "</h3>";
+      chartHtml += "<div style=\"display:flex;flex-direction:column;gap:20px;\">";
+      chartHtml += "<div style=\"height:280px;\"><canvas id=\"g_" + base + "_spread\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Spread vs price (x=price)</p></div>";
+      chartHtml += "<div style=\"height:280px;\"><canvas id=\"g_" + (base + 1) + "_volume\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Volume vs price (x=price)</p></div>";
+      chartHtml += "<div style=\"height:280px;\"><canvas id=\"g_" + (base + 2) + "_time\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Time vs price (x=price)</p></div>";
+      chartHtml += "</div></div>";
+    }
 
-    if (datasetsPrice.length === 0) {
-      container.innerHTML = "<p style=\"color:#6b7280;\">No items with enough data in last 24h.</p>";
+    if (items4.length === 0) {
+      container.innerHTML = "<p style=\"color:#6b7280;\">No items. Enter at least one item above.</p>";
       updateLastUpdatedStamp();
       return;
     }
 
-    container.innerHTML = "<div style=\"display:flex;flex-direction:column;gap:32px;margin-top:16px;\">" +
-      "<div style=\"width:100%;\"><h3 style=\"margin:0 0 8px 0;font-size:1rem;color:#1a1a1a;\">Price over time</h3><div style=\"height:320px;\"><canvas id=\"corr_chart_price\"></canvas></div></div>" +
-      "<div style=\"width:100%;\"><h3 style=\"margin:0 0 8px 0;font-size:1rem;color:#1a1a1a;\">Spread over time</h3><div style=\"height:320px;\"><canvas id=\"corr_chart_spread\"></canvas></div></div>" +
-      "<div style=\"width:100%;\"><h3 style=\"margin:0 0 8px 0;font-size:1rem;color:#1a1a1a;\">Volume over time</h3><div style=\"height:320px;\"><canvas id=\"corr_chart_volume\"></canvas></div></div>" +
-      "</div>";
+    container.innerHTML = "<div style=\"display:flex;flex-direction:column;gap:32px;margin-top:16px;\">" + chartHtml + "</div>";
 
-    var xAxis = { grid: { color: "#eee" }, title: { display: true, text: "Time (hour)" } };
-    var priceY = { grid: { color: "#eee" }, title: { display: true, text: "Price" } };
+    var priceX = { grid: { color: "#eee" }, title: { display: true, text: "Price" } };
     var spreadY = { grid: { color: "#eee" }, title: { display: true, text: "Spread" } };
     var volumeY = { grid: { color: "#eee" }, title: { display: true, text: "Volume" } };
+    var timeY = { grid: { color: "#eee" }, title: { display: true, text: "Time (hour)" } };
     if (typeof Chart !== "undefined") {
-      var c1 = new Chart(document.getElementById("corr_chart_price"), { type: "line", data: { labels: hourLabels, datasets: datasetsPrice }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } }, scales: { x: xAxis, y: priceY } } });
-      correlationCharts.push(c1);
-      var c2 = new Chart(document.getElementById("corr_chart_spread"), { type: "line", data: { labels: hourLabels, datasets: datasetsSpread }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } }, scales: { x: xAxis, y: spreadY } } });
-      correlationCharts.push(c2);
-      var c3 = new Chart(document.getElementById("corr_chart_volume"), { type: "line", data: { labels: hourLabels, datasets: datasetsVolume }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } }, scales: { x: xAxis, y: volumeY } } });
-      correlationCharts.push(c3);
+      for (var i = 0; i < items4.length; i++) {
+        var it = items4[i];
+        var pts = itemSeries[it.id].points;
+        var color = lineColors[i % lineColors.length];
+        var base = i * 3;
+        var spreadVsPrice = pts.filter(function (p) { return p.price != null && p.spread != null; }).map(function (p) { return { x: p.price, y: p.spread }; });
+        var volumeVsPrice = pts.map(function (p) { return { x: p.price, y: p.volume }; });
+        var timeVsPrice = pts.map(function (p) { return { x: p.price, y: p.hour }; });
+        if (spreadVsPrice.length > 0) {
+          var c1 = new Chart(document.getElementById("g_" + base + "_spread"), { type: "scatter", data: { datasets: [{ data: spreadVsPrice, borderColor: color, backgroundColor: color + "80", borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: spreadY } } });
+          correlationCharts.push(c1);
+        }
+        var c2 = new Chart(document.getElementById("g_" + (base + 1) + "_volume"), { type: "scatter", data: { datasets: [{ data: volumeVsPrice, borderColor: color, backgroundColor: color + "80", borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: volumeY } } });
+        correlationCharts.push(c2);
+        var c3 = new Chart(document.getElementById("g_" + (base + 2) + "_time"), { type: "scatter", data: { datasets: [{ data: timeVsPrice, borderColor: color, backgroundColor: color + "80", borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: timeY } } });
+        correlationCharts.push(c3);
+      }
     }
 
     updateLastUpdatedStamp();
