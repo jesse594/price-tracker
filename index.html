@@ -184,7 +184,7 @@
 
 <section class="section">
   <h2 class="section-title">Correlation: spread, volume &amp; time vs price</h2>
-  <p class="section-desc">Pick up to 5 items (edit above and refresh to change). Three graphs per item: spread vs price, volume vs price, time of day vs price (price on y-axis). Data: last 24h hourly. Loads automatically.</p>
+  <p class="section-desc">Pick up to 5 items (edit above and refresh to change). Three graphs: correlation coefficient with price for spread, volume, and time of day (last 24h). Same scale (−1 to 1) so all items comparable.</p>
   <div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
     <input id="corr_item_1" class="form-input" placeholder="Item 1 (name or ID)" value="Coal" style="width:160px;">
     <input id="corr_item_2" class="form-input" placeholder="Item 2 (name or ID)" value="Steel cannonball" style="width:160px;">
@@ -799,6 +799,20 @@ function timeAgo(unixSec) {
 
 var correlationCharts = [];
 
+function pearson(xArr, yArr) {
+  var n = Math.min(xArr.length, yArr.length);
+  if (n < 2) return null;
+  var sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+  for (var i = 0; i < n; i++) {
+    var x = xArr[i], y = yArr[i];
+    sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+  }
+  var num = n * sxy - sx * sy;
+  var den = Math.sqrt((n * sxx - sx * sx) * (n * syy - sy * sy));
+  if (den === 0) return null;
+  return Math.max(-1, Math.min(1, num / den));
+}
+
 async function resolveItemIds() {
   const mapping = await getItemMapping();
   const ids = [];
@@ -858,51 +872,50 @@ async function loadCorrelationGraphs() {
       });
     }
 
-    container.innerHTML = "";
-    const chartOptions = { responsive: true, maintainAspectRatio: true, aspectRatio: 2, plugins: { legend: { display: false } }, scales: { x: { grid: { color: "#eee" } }, y: { grid: { color: "#eee" } } } };
-
-    items.forEach((it, idx) => {
-      const pts = itemSeries[it.id].points;
-      if (pts.length === 0) {
-        container.appendChild(document.createElement("div")).innerHTML = "<p style=\"color:#6b7280;\">" + (it.name || it.id).replace(/</g, "&lt;") + ": no data in last 24h.</p>";
-        return;
-      }
-      const title = document.createElement("h3");
-      title.style.cssText = "margin:24px 0 8px 0;font-size:1rem;color:#1a1a1a;";
-      title.textContent = it.name || "ID " + it.id;
-      container.appendChild(title);
-
-      const grid = document.createElement("div");
-      grid.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;";
-      container.appendChild(grid);
-
-      const spreadVsPrice = document.createElement("div");
-      spreadVsPrice.innerHTML = "<canvas id=\"corr_s_" + it.id + "_" + idx + "\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Spread vs price</p>";
-      grid.appendChild(spreadVsPrice);
-      const volVsPrice = document.createElement("div");
-      volVsPrice.innerHTML = "<canvas id=\"corr_v_" + it.id + "_" + idx + "\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Volume vs price</p>";
-      grid.appendChild(volVsPrice);
-      const timeVsPrice = document.createElement("div");
-      timeVsPrice.innerHTML = "<canvas id=\"corr_t_" + it.id + "_" + idx + "\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Time of day (UTC) vs price</p>";
-      grid.appendChild(timeVsPrice);
-
-      const spreadData = pts.filter(p => p.spread != null).map(p => ({ x: p.spread, y: p.price }));
-      const volData = pts.map(p => ({ x: p.volume, y: p.price }));
-      const byHour = {};
-      pts.forEach(p => { if (!byHour[p.hour]) byHour[p.hour] = []; byHour[p.hour].push(p.price); });
-      const timeData = Object.keys(byHour).sort((a, b) => Number(a) - Number(b)).map(h => ({ x: Number(h), y: byHour[h].reduce((a, b) => a + b, 0) / byHour[h].length }));
-
-      if (typeof Chart !== "undefined") {
-        if (spreadData.length) {
-          const c1 = new Chart(document.getElementById("corr_s_" + it.id + "_" + idx), { type: "scatter", data: { datasets: [{ data: spreadData, backgroundColor: "rgba(34,197,94,0.6)", borderColor: "#22c55e", borderWidth: 1 }] }, options: { ...chartOptions, scales: { x: { title: { display: true, text: "Spread" }, grid: { color: "#eee" } }, y: { title: { display: true, text: "Price" }, grid: { color: "#eee" } } } });
-          correlationCharts.push(c1);
-        }
-        const c2 = new Chart(document.getElementById("corr_v_" + it.id + "_" + idx), { type: "scatter", data: { datasets: [{ data: volData, backgroundColor: "rgba(168,85,247,0.6)", borderColor: "#a855f7", borderWidth: 1 }] }, options: { ...chartOptions, scales: { x: { title: { display: true, text: "Volume" }, grid: { color: "#eee" } }, y: { title: { display: true, text: "Price" }, grid: { color: "#eee" } } } });
-        correlationCharts.push(c2);
-        const c3 = new Chart(document.getElementById("corr_t_" + it.id + "_" + idx), { type: "line", data: { labels: timeData.map(d => d.x + ":00"), datasets: [{ label: "Price", data: timeData.map(d => d.y), borderColor: "#ff8c42", backgroundColor: "rgba(255,140,66,0.2)", fill: true, tension: 0.2 }] }, options: { ...chartOptions, scales: { x: { title: { display: true, text: "Hour (UTC)" }, grid: { color: "#eee" } }, y: { title: { display: true, text: "Price" }, grid: { color: "#eee" } } } });
-        correlationCharts.push(c3);
-      }
+    var labels = [];
+    var rSpread = [];
+    var rVolume = [];
+    var rTime = [];
+    items.forEach(function (it) {
+      var pts = itemSeries[it.id].points;
+      if (pts.length < 2) return;
+      var spreads = [], pricesS = [], volumes = [], pricesV = [], hours = [], pricesT = [];
+      pts.forEach(function (p) {
+        if (p.spread != null && p.price != null) { spreads.push(p.spread); pricesS.push(p.price); }
+        volumes.push(p.volume); pricesV.push(p.price);
+        hours.push(p.hour); pricesT.push(p.price);
+      });
+      var pSpread = pearson(spreads, pricesS);
+      var pVol = pearson(volumes, pricesV);
+      var pTime = pearson(hours, pricesT);
+      labels.push((it.name || "ID " + it.id).replace(/</g, ""));
+      rSpread.push(pSpread != null ? Math.round(pSpread * 100) / 100 : null);
+      rVolume.push(pVol != null ? Math.round(pVol * 100) / 100 : null);
+      rTime.push(pTime != null ? Math.round(pTime * 100) / 100 : null);
     });
+
+    if (labels.length === 0) {
+      container.innerHTML = "<p style=\"color:#6b7280;\">No items with enough data in last 24h.</p>";
+      updateLastUpdatedStamp();
+      return;
+    }
+
+    container.innerHTML = "<div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:16px;\">" +
+      "<div><canvas id=\"corr_chart_spread\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Spread vs price (r)</p></div>" +
+      "<div><canvas id=\"corr_chart_volume\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Volume vs price (r)</p></div>" +
+      "<div><canvas id=\"corr_chart_time\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Time of day vs price (r)</p></div>" +
+      "</div>";
+
+    var chartOpt = { responsive: true, maintainAspectRatio: true, aspectRatio: 1.2, plugins: { legend: { display: false } }, scales: { x: { grid: { color: "#eee" } }, y: { min: -1, max: 1, grid: { color: "#eee" }, title: { display: true, text: "Correlation (r)" } } } };
+    var barColors = ["#22c55e", "#a855f7", "#ff8c42", "#3b82f6", "#ec4899"];
+    if (typeof Chart !== "undefined") {
+      var c1 = new Chart(document.getElementById("corr_chart_spread"), { type: "bar", data: { labels: labels, datasets: [{ label: "Spread–price", data: rSpread, backgroundColor: barColors.slice(0, labels.length) }] }, options: chartOpt });
+      correlationCharts.push(c1);
+      var c2 = new Chart(document.getElementById("corr_chart_volume"), { type: "bar", data: { labels: labels, datasets: [{ label: "Volume–price", data: rVolume, backgroundColor: barColors.slice(0, labels.length) }] }, options: chartOpt });
+      correlationCharts.push(c2);
+      var c3 = new Chart(document.getElementById("corr_chart_time"), { type: "bar", data: { labels: labels, datasets: [{ label: "Time–price", data: rTime, backgroundColor: barColors.slice(0, labels.length) }] }, options: chartOpt });
+      correlationCharts.push(c3);
+    }
 
     updateLastUpdatedStamp();
   } catch (e) {
