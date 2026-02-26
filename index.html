@@ -131,55 +131,6 @@
 </div>
 
 
-<!-- OPEN TRADES -->
-
-<section class="section">
-  <h2 class="section-title">Open trades</h2>
-  <table class="dashboard-table" style="max-width:720px;">
-    <thead>
-      <tr>
-        <th style="text-align:left;">Item</th>
-        <th style="text-align:left;">Date</th>
-        <th style="text-align:right;">Buy Price</th>
-        <th style="text-align:right;">Total price</th>
-        <th style="text-align:right;">Current Price</th>
-        <th style="text-align:right;">Profit / Loss</th>
-        <th style="text-align:right;">Signal</th>
-        <th style="text-align:center;">Close trade</th>
-      </tr>
-    </thead>
-    <tbody id="openTradesBody">
-      <tr>
-        <td colspan="8" style="padding:14px 16px;color:#6b7280;">Loading…</td>
-      </tr>
-    </tbody>
-  </table>
-</section>
-
-<!-- CLOSED TRADES -->
-
-<section class="section">
-  <h2 class="section-title">Closed trades</h2>
-  <table class="dashboard-table" style="max-width:720px;">
-    <thead>
-      <tr>
-        <th style="text-align:left;">Item</th>
-        <th style="text-align:left;">Date</th>
-        <th style="text-align:right;">Buy Price</th>
-        <th style="text-align:right;">Total buy</th>
-        <th style="text-align:right;">Sell Price</th>
-        <th style="text-align:right;">Total sell</th>
-        <th style="text-align:right;">Profit / Loss</th>
-      </tr>
-    </thead>
-    <tbody id="closedTradesBody">
-      <tr>
-        <td colspan="7" style="padding:14px 16px;color:#6b7280;">Loading…</td>
-      </tr>
-    </tbody>
-  </table>
-</section>
-
 <!-- CORRELATION: SPREAD, VOLUME, TIME OF DAY VS PRICE (5 ITEMS × 3 GRAPHS) -->
 
 <section class="section">
@@ -191,6 +142,7 @@
     <input id="corr_item_3" class="form-input" placeholder="Item 3 (name or ID)" value="Seer's ring" style="width:160px;">
     <input id="corr_item_4" class="form-input" placeholder="Item 4 (name or ID)" value="Nightmare staff" style="width:160px;">
     <input id="corr_item_5" class="form-input" placeholder="Item 5 (name or ID)" style="width:160px;">
+    <button type="button" id="reloadGraphsBtn" class="btn-outline">Reload graphs</button>
   </div>
   <div id="correlationChartsContainer" style="display:grid;gap:24px;">
     <p style="color:#6b7280;font-size:14px;">Loading graphs…</p>
@@ -200,24 +152,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-<!-- CLOSE TRADE MODAL -->
-
-<div id="closeTradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;">
-  <div style="background:#fff;border:1px solid #e5e2dc;border-radius:12px;padding:24px;min-width:300px;box-shadow:0 10px 40px rgba(0,0,0,0.12);">
-    <h3 style="margin:0 0 16px 0;color:#1a1a1a;">Close this trade</h3>
-    <p style="margin:0 0 8px 0;color:#6b7280;">Item: <strong id="closeTradeItemName" style="color:#1a1a1a;"></strong></p>
-    <p style="margin:0 0 16px 0;color:#6b7280;">Buy price: <strong id="closeTradeBuyPrice" style="color:#1a1a1a;"></strong> GP</p>
-    <label style="display:block;margin-bottom:6px;color:#6b7280;font-size:14px;">Sell price (GP)</label>
-    <input id="closeTradeSellPrice" type="number" min="0" placeholder="e.g. 1017240" class="form-input" style="width:100%;margin-bottom:16px;">
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button type="button" onclick="cancelCloseTrade()" class="btn-outline">Cancel</button>
-      <button type="button" onclick="confirmCloseTrade()" class="btn-primary">Confirm</button>
-    </div>
-  </div>
-</div>
-
-
 
 <!-- LOG TRADE PANEL (collapsible) -->
 
@@ -418,9 +352,6 @@ async function logTrade() {
       document.getElementById("log_price").value = "";
       document.getElementById("log_quantity").value = "1";
 
-
-      loadDashboard();
-
     }
 
     else {
@@ -454,201 +385,6 @@ async function logTrade() {
 
 
 
-function formatTradeDate(isoString) {
-  if (!isoString) return "—";
-  const d = new Date(isoString);
-  if (isNaN(d.getTime())) return "—";
-  const day = d.getDate();
-  const ord = day === 1 || day === 21 || day === 31 ? "st" : day === 2 || day === 22 ? "nd" : day === 3 || day === 23 ? "rd" : "th";
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return day + ord + " " + months[d.getMonth()];
-}
-
-/* LOAD OPEN POSITIONS */
-
-async function loadDashboard() {
-
-  const openTbody =
-  document.getElementById("openTradesBody");
-
-  const closedTbody =
-  document.getElementById("closedTradesBody");
-
-  try {
-
-    const tradesRes =
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/trades`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization:
-          `Bearer ${SUPABASE_KEY}`
-        }
-      }
-    );
-
-    const allTrades =
-    await tradesRes.json();
-
-
-    const priceRes =
-    await fetch(
-      "https://prices.runescape.wiki/api/v1/osrs/latest"
-    );
-
-    const priceData =
-    await priceRes.json();
-
-
-    updateLastUpdatedStamp();
-
-
-    const openTrades =
-    allTrades
-    .filter(t => t.status === "OPEN")
-    .sort((a, b) => (b.id || 0) - (a.id || 0));
-
-    const closedTrades =
-    allTrades
-    .filter(t => t.status === "CLOSED" || (t.status !== "OPEN" && t.sell_price != null))
-    .sort((a, b) => (b.id || 0) - (a.id || 0));
-
-
-    if (openTrades.length === 0) {
-
-      openTbody.innerHTML =
-      `<tr><td colspan="8" style="padding:14px 16px;color:#6b7280;">No open trades</td></tr>`;
-
-    } else {
-
-      openTbody.innerHTML =
-      openTrades.map(trade => {
-
-        const market =
-        priceData.data[trade.item_id];
-
-        if (!market) return "";
-
-        const current =
-        Math.floor(
-          (market.high + market.low) / 2
-        );
-
-        const buy =
-        trade.buy_price;
-
-        const qty =
-        Math.max(1, parseInt(trade.quantity, 10) || 1);
-
-        const profit =
-        (current - buy) * qty;
-
-        const stopPrice =
-        Math.floor(buy * 0.92);
-
-        let signal =
-        "HOLD";
-
-        let signalColor =
-        "orange";
-
-        if (current <= stopPrice) {
-
-          signal =
-          "SELL";
-
-          signalColor =
-          "red";
-
-        }
-
-        const profitColor =
-        profit >= 0 ? "limegreen" : "red";
-
-        const itemNameEsc =
-        (trade.item_name || "").replace(/"/g, "&quot;");
-
-        const totalPrice = buy * qty;
-        return `<tr style="border-bottom:1px solid #eee;">
-            <td style="padding:14px 16px;">${trade.item_name}</td>
-            <td style="padding:14px 16px;">${formatTradeDate(trade.buy_time)}</td>
-            <td style="padding:14px 16px;text-align:right;">${buy.toLocaleString()}</td>
-            <td style="padding:14px 16px;text-align:right;">${totalPrice.toLocaleString()}</td>
-            <td style="padding:14px 16px;text-align:right;">${current.toLocaleString()}</td>
-            <td style="padding:14px 16px;text-align:right;color:${profitColor};">${profit.toLocaleString()}</td>
-            <td style="padding:14px 16px;text-align:right;">Stop: ${stopPrice.toLocaleString()}<br><span style="color:${signalColor};font-weight:bold;">${signal}</span></td>
-            <td style="padding:14px 16px;text-align:center;">
-              <button onclick="openCloseTradeModal(this)" data-id="${trade.id}" data-item-name="${itemNameEsc}" data-buy-price="${buy}" class="btn-outline" style="padding:6px 12px;font-size:12px;cursor:pointer;">Close trade</button>
-            </td>
-          </tr>`;
-
-      }).join("");
-
-    }
-
-
-    if (closedTrades.length === 0) {
-
-      closedTbody.innerHTML =
-      `<tr><td colspan="7" style="padding:14px 16px;color:#6b7280;">No closed trades</td></tr>`;
-
-    } else {
-
-      closedTbody.innerHTML =
-      closedTrades.map(trade => {
-
-        const buy =
-        trade.buy_price;
-
-        const sell =
-        trade.sell_price;
-
-        const qty =
-        Math.max(1, parseInt(trade.quantity, 10) || 1);
-
-        const profit =
-        sell != null ? (sell - buy) * qty : null;
-
-        const profitColor =
-        profit != null && profit >= 0 ? "limegreen" : profit != null ? "red" : "inherit";
-
-        const profitStr =
-        profit != null ? profit.toLocaleString() : "—";
-
-        const totalBuy = buy * qty;
-        const totalSell = sell != null ? sell * qty : null;
-        return `
-          <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:14px 16px;">${trade.item_name}</td>
-            <td style="padding:14px 16px;">${formatTradeDate(trade.buy_time)}</td>
-            <td style="padding:14px 16px;text-align:right;">${buy.toLocaleString()}</td>
-            <td style="padding:14px 16px;text-align:right;">${totalBuy.toLocaleString()}</td>
-            <td style="padding:14px 16px;text-align:right;">${sell != null ? sell.toLocaleString() : "—"}</td>
-            <td style="padding:14px 16px;text-align:right;">${totalSell != null ? totalSell.toLocaleString() : "—"}</td>
-            <td style="padding:14px 16px;text-align:right;color:${profitColor};">${profitStr}</td>
-          </tr>
-        `;
-
-      }).join("");
-
-    }
-
-  }
-
-  catch {
-
-    openTbody.innerHTML =
-    `<tr><td colspan="8" style="padding:14px 16px;color:#dc2626;">Error loading trades</td></tr>`;
-
-    closedTbody.innerHTML =
-    `<tr><td colspan="7" style="padding:14px 16px;color:#dc2626;">Error loading trades</td></tr>`;
-
-  }
-
-}
-
-
 function updateLastUpdatedStamp() {
 
   const el =
@@ -660,120 +396,6 @@ function updateLastUpdatedStamp() {
 
 }
 
-
-let closingTradeId = null;
-
-function openCloseTradeModal(btn) {
-
-  const id =
-  btn.getAttribute("data-id");
-
-  const itemName =
-  btn.getAttribute("data-item-name") || "";
-
-  const buyPrice =
-  btn.getAttribute("data-buy-price");
-
-  closingTradeId = id;
-
-  document.getElementById("closeTradeItemName").textContent = itemName;
-
-  document.getElementById("closeTradeBuyPrice").textContent = buyPrice != null && buyPrice !== "" ? Number(buyPrice).toLocaleString() : "—";
-
-  document.getElementById("closeTradeSellPrice").value = "";
-
-  document.getElementById("closeTradeModal").style.display = "flex";
-
-}
-
-function cancelCloseTrade() {
-
-  closingTradeId = null;
-
-  document.getElementById("closeTradeModal").style.display = "none";
-
-}
-
-async function confirmCloseTrade() {
-
-  if (closingTradeId == null)
-  return;
-
-  const sellPriceStr =
-  document.getElementById("closeTradeSellPrice").value.trim();
-
-  if (sellPriceStr === "") {
-
-    alert("Enter sell price (GP).");
-
-    return;
-
-  }
-
-  const sellPrice =
-  parseInt(sellPriceStr, 10);
-
-  if (isNaN(sellPrice) || sellPrice < 0) {
-
-    alert("Enter a valid price.");
-
-    return;
-
-  }
-
-  try {
-
-    const res =
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/trades?id=eq.${encodeURIComponent(closingTradeId)}`,
-      {
-        method: "PATCH",
-
-        headers: {
-
-          apikey: SUPABASE_KEY,
-
-          Authorization:
-          `Bearer ${SUPABASE_KEY}`,
-
-          "Content-Type":
-          "application/json"
-
-        },
-
-        body:
-        JSON.stringify({
-
-          sell_price: sellPrice,
-
-          status: "CLOSED"
-
-        })
-
-      }
-    );
-
-    cancelCloseTrade();
-
-    if (res.ok)
-    loadDashboard();
-    else {
-
-      const errText =
-      await res.text();
-
-      alert("Error " + res.status + ": " + (errText.slice(0, 100) || "check Supabase"));
-
-    }
-
-  }
-  catch (err) {
-
-    alert("Error: " + (err && err.message ? err.message : "network?"));
-
-  }
-
-}
 
 
 
@@ -956,12 +578,16 @@ function toggleLogTradePanel() {
   });
 })();
 
+/* RELOAD GRAPHS BUTTON */
+
+(function () {
+  var btn = document.getElementById("reloadGraphsBtn");
+  if (btn) btn.addEventListener("click", function () { loadCorrelationGraphs(); });
+})();
+
 /* RUN */
 
-loadDashboard();
 loadCorrelationGraphs();
-
-setInterval(loadDashboard, 60000);
 
 
 </script>
