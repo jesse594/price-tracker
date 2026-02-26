@@ -528,16 +528,16 @@ async function loadCorrelationGraphs() {
         var pts = itemSeries[it.id].points;
         var color = lineColors[i % lineColors.length];
         var base = i * 3;
-        var spreadVsPrice = pts.filter(function (p) { return p.price != null && p.spread != null; }).map(function (p) { return { x: p.price, y: p.spread }; });
-        var volumeVsPrice = pts.map(function (p) { return { x: p.price, y: p.volume }; });
-        var timeVsPrice = pts.map(function (p) { return { x: p.price, y: p.hour }; });
+        var spreadVsPrice = pts.filter(function (p) { return p.price != null && p.spread != null; }).map(function (p) { return { x: p.price, y: p.spread }; }).sort(function (a, b) { return a.x - b.x; });
+        var volumeVsPrice = pts.map(function (p) { return { x: p.price, y: p.volume }; }).sort(function (a, b) { return a.x - b.x; });
+        var timeVsPrice = pts.map(function (p) { return { x: p.price, y: p.hour }; }).sort(function (a, b) { return a.x - b.x; });
         if (spreadVsPrice.length > 0) {
-          var c1 = new Chart(document.getElementById("g_" + base + "_spread"), { type: "scatter", data: { datasets: [{ data: spreadVsPrice, borderColor: color, backgroundColor: color + "80", borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: spreadY } } });
+          var c1 = new Chart(document.getElementById("g_" + base + "_spread"), { type: "line", data: { datasets: [{ data: spreadVsPrice, borderColor: color, backgroundColor: color + "20", borderWidth: 2, fill: false, tension: 0.2, pointRadius: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: spreadY } } });
           correlationCharts.push(c1);
         }
-        var c2 = new Chart(document.getElementById("g_" + (base + 1) + "_volume"), { type: "scatter", data: { datasets: [{ data: volumeVsPrice, borderColor: color, backgroundColor: color + "80", borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: volumeY } } });
+        var c2 = new Chart(document.getElementById("g_" + (base + 1) + "_volume"), { type: "line", data: { datasets: [{ data: volumeVsPrice, borderColor: color, backgroundColor: color + "20", borderWidth: 2, fill: false, tension: 0.2, pointRadius: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: volumeY } } });
         correlationCharts.push(c2);
-        var c3 = new Chart(document.getElementById("g_" + (base + 2) + "_time"), { type: "scatter", data: { datasets: [{ data: timeVsPrice, borderColor: color, backgroundColor: color + "80", borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: timeY } } });
+        var c3 = new Chart(document.getElementById("g_" + (base + 2) + "_time"), { type: "line", data: { datasets: [{ data: timeVsPrice, borderColor: color, backgroundColor: color + "20", borderWidth: 2, fill: false, tension: 0.2, pointRadius: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: priceX, y: timeY } } });
         correlationCharts.push(c3);
       }
     }
