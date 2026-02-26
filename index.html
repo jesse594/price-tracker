@@ -184,17 +184,16 @@
 
 <section class="section">
   <h2 class="section-title">Correlation: spread, volume &amp; time vs price</h2>
-  <p class="section-desc">Pick 5 items. Three graphs per item: spread vs price, volume vs price, time of day vs price (price always on y-axis). Data: last 24h hourly.</p>
+  <p class="section-desc">Pick up to 5 items (edit above and refresh to change). Three graphs per item: spread vs price, volume vs price, time of day vs price (price on y-axis). Data: last 24h hourly. Loads automatically.</p>
   <div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
     <input id="corr_item_1" class="form-input" placeholder="Item 1 (name or ID)" value="Coal" style="width:160px;">
     <input id="corr_item_2" class="form-input" placeholder="Item 2 (name or ID)" value="Steel cannonball" style="width:160px;">
     <input id="corr_item_3" class="form-input" placeholder="Item 3 (name or ID)" value="Seer's ring" style="width:160px;">
     <input id="corr_item_4" class="form-input" placeholder="Item 4 (name or ID)" value="Nightmare staff" style="width:160px;">
     <input id="corr_item_5" class="form-input" placeholder="Item 5 (name or ID)" style="width:160px;">
-    <button type="button" id="loadCorrelationBtn" class="btn-outline">Load graphs</button>
   </div>
   <div id="correlationChartsContainer" style="display:grid;gap:24px;">
-    <p style="color:#6b7280;font-size:14px;">Enter items and click Load graphs.</p>
+    <p style="color:#6b7280;font-size:14px;">Loading graphs…</p>
   </div>
 </section>
 
@@ -220,22 +219,24 @@
 
 
 
-<!-- LOG TRADE PANEL -->
+<!-- LOG TRADE PANEL (collapsible) -->
 
 <div class="log-trade-panel" style="
   position: fixed;
   top: 20px;
   right: 20px;
   background: #fff;
-  padding: 22px 24px;
   border: 1px solid #e5e2dc;
   border-radius: 12px;
   width: 280px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  z-index: 50;
 ">
-
-  <h3 style="margin: 0 0 20px 0; font-size: 1.1rem; font-weight: 600; color: #1a1a1a;">Log Trade</h3>
-
+  <button type="button" id="log_trade_toggle" onclick="toggleLogTradePanel()" style="width:100%;padding:12px 16px;border:none;border-radius:12px 12px 0 0;background:#faf9f7;color:#1a1a1a;font-size:1rem;font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between;">
+    <span>Log Trade</span>
+    <span id="log_trade_toggle_icon" style="font-size:12px;color:#6b7280;">▼ Open</span>
+  </button>
+  <div id="log_trade_form_wrap" style="display:none;padding:22px 24px;border-top:1px solid #e5e2dc;">
   <label class="log-field-label" for="log_trade_type">Type</label>
   <select id="log_trade_type" class="form-select" style="width:100%;margin-bottom:14px;">
     <option value="buy">Buy</option>
@@ -256,10 +257,10 @@
   <label class="log-field-label" for="log_quantity">Quantity</label>
   <input id="log_quantity" type="number" min="1" value="1" class="form-input" style="width:100%;margin-bottom:20px;">
 
-  <button onclick="logTrade()" class="btn-primary" style="width:100%;">Log trade</button>
+  <button type="button" onclick="logTrade()" class="btn-primary" style="width:100%;">Log trade</button>
 
   <div id="log_status" style="margin-top:12px;font-size:12px;min-height:16px;color:#6b7280;"></div>
-
+  </div>
 </div>
 
 
@@ -817,8 +818,7 @@ async function resolveItemIds() {
 
 async function loadCorrelationGraphs() {
   const container = document.getElementById("correlationChartsContainer");
-  const btn = document.getElementById("loadCorrelationBtn");
-  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  if (!container) return;
   container.innerHTML = "<p style=\"color:#6b7280;\">Resolving items and loading 24h data…</p>";
   correlationCharts.forEach(c => { if (c) c.destroy(); });
   correlationCharts = [];
@@ -826,8 +826,7 @@ async function loadCorrelationGraphs() {
   try {
     const items = await resolveItemIds();
     if (items.length === 0) {
-      container.innerHTML = "<p style=\"color:#6b7280;\">Enter at least one item (name or ID) and click Load graphs.</p>";
-      if (btn) { btn.disabled = false; btn.textContent = "Load graphs"; }
+      container.innerHTML = "<p style=\"color:#6b7280;\">Enter at least one item (name or ID) above and refresh to load graphs.</p>";
       return;
     }
 
@@ -910,14 +909,20 @@ async function loadCorrelationGraphs() {
     const errMsg = (e && (e.message || e.toString)) ? (e.message || e.toString()) : "Unknown error";
     container.innerHTML = "<p style=\"color:#dc2626;\">Error: " + String(errMsg).replace(/</g, "&lt;") + "</p>";
   }
-  if (btn) { btn.disabled = false; btn.textContent = "Load graphs"; }
 }
 
-/* BIND LOAD GRAPHS BUTTON */
-(function () {
-  var btn = document.getElementById("loadCorrelationBtn");
-  if (btn) btn.addEventListener("click", function () { loadCorrelationGraphs(); });
-})();
+function toggleLogTradePanel() {
+  var wrap = document.getElementById("log_trade_form_wrap");
+  var icon = document.getElementById("log_trade_toggle_icon");
+  if (!wrap) return;
+  if (wrap.style.display === "none") {
+    wrap.style.display = "block";
+    if (icon) icon.textContent = "▲ Close";
+  } else {
+    wrap.style.display = "none";
+    if (icon) icon.textContent = "▼ Open";
+  }
+}
 
 /* ITEM NAME AUTOCOMPLETE */
 
@@ -941,6 +946,7 @@ async function loadCorrelationGraphs() {
 /* RUN */
 
 loadDashboard();
+loadCorrelationGraphs();
 
 setInterval(loadDashboard, 60000);
 
