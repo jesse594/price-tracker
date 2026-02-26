@@ -180,36 +180,27 @@
   </table>
 </section>
 
-<!-- SPREAD WATCH: COAL, STEEL CANNONBALL, SEER'S RING -->
+<!-- CORRELATION: SPREAD, VOLUME, TIME OF DAY VS PRICE (5 ITEMS × 3 GRAPHS) -->
 
 <section class="section">
-  <h2 class="section-title">Spread watch</h2>
-  <p class="section-desc">Coal, Steel cannonball, Seer's ring. Instabuy/instasell with age; spread, change in spread, volume, change in volume (last 12h).</p>
-  <div style="margin-bottom:12px;">
-    <button type="button" onclick="loadStableOpportunities()" class="btn-outline">Load</button>
+  <h2 class="section-title">Correlation: spread, volume &amp; time vs price</h2>
+  <p class="section-desc">Pick 5 items. Three graphs per item: spread vs price, volume vs price, time of day vs price (price always on y-axis). Data: last 24h hourly.</p>
+  <div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+    <input id="corr_item_1" class="form-input" placeholder="Item 1 (name or ID)" style="width:160px;">
+    <input id="corr_item_2" class="form-input" placeholder="Item 2 (name or ID)" style="width:160px;">
+    <input id="corr_item_3" class="form-input" placeholder="Item 3 (name or ID)" style="width:160px;">
+    <input id="corr_item_4" class="form-input" placeholder="Item 4 (name or ID)" style="width:160px;">
+    <input id="corr_item_5" class="form-input" placeholder="Item 5 (name or ID)" style="width:160px;">
+    <button type="button" onclick="loadCorrelationGraphs()" class="btn-outline">Load graphs</button>
   </div>
-  <table class="dashboard-table" style="max-width:960px;">
-    <thead>
-      <tr>
-        <th style="text-align:left;">Item</th>
-        <th style="text-align:right;">Instabuy</th>
-        <th style="text-align:right;">Instasell</th>
-        <th style="text-align:right;">Margin</th>
-        <th style="text-align:right;">Spread</th>
-        <th style="text-align:right;">Change in spread</th>
-        <th style="text-align:right;">Volume (12h)</th>
-        <th style="text-align:right;">Change in volume</th>
-      </tr>
-    </thead>
-    <tbody id="stableOpportunitiesBody">
-      <tr><td colspan="8" style="padding:14px 16px;color:#6b7280;">Click Load.</td></tr>
-    </tbody>
-  </table>
-  <p style="margin-top:8px;font-size:12px;color:#6b7280;">Instabuy/instasell = last known trade; age under each. Spread = high−low. Change = how much it varies over 12h (%).</p>
-
+  <div id="correlationChartsContainer" style="display:grid;gap:24px;">
+    <p style="color:#6b7280;font-size:14px;">Enter items and click Load graphs.</p>
+  </div>
 </section>
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <!-- CLOSE TRADE MODAL -->
 
@@ -805,103 +796,115 @@ function timeAgo(unixSec) {
   return Math.floor(hr / 24) + "d ago";
 }
 
-var SPREAD_WATCH_IDS = [2, 453, 6731]; // Steel cannonball, Coal, Seer's ring
+var correlationCharts = [];
 
-async function loadStableOpportunities() {
-  const tbody = document.getElementById("stableOpportunitiesBody");
-  tbody.innerHTML = "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#6b7280;\">Loading 12h + latest…</td></tr>";
+async function resolveItemIds() {
+  const mapping = await getItemMapping();
+  const ids = [];
+  for (let i = 1; i <= 5; i++) {
+    const raw = document.getElementById("corr_item_" + i).value.trim();
+    if (!raw) continue;
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && String(num) === String(raw).trim()) {
+      ids.push({ id: String(num), name: (mapping.find(m => m.id === num) || {}).name || "ID " + num });
+    } else {
+      const found = mapping.find(m => m.name && m.name.toLowerCase() === raw.toLowerCase()) || mapping.find(m => m.name && m.name.toLowerCase().includes(raw.toLowerCase()));
+      if (found) ids.push({ id: String(found.id), name: found.name });
+    }
+  }
+  return ids;
+}
+
+async function loadCorrelationGraphs() {
+  const container = document.getElementById("correlationChartsContainer");
+  container.innerHTML = "<p style=\"color:#6b7280;\">Resolving items and loading 24h data…</p>";
+  correlationCharts.forEach(c => { if (c) c.destroy(); });
+  correlationCharts = [];
 
   try {
+    const items = await resolveItemIds();
+    if (items.length === 0) {
+      container.innerHTML = "<p style=\"color:#6b7280;\">Enter at least one item (name or ID) and click Load graphs.</p>";
+      return;
+    }
+
     const nowSec = Math.floor(Date.now() / 1000);
     const startOfCurrentHour = Math.floor(nowSec / 3600) * 3600;
     const timestamps = [];
-    for (let i = 0; i < 12; i++) timestamps.push(startOfCurrentHour - i * 3600);
+    for (let i = 0; i < 24; i++) timestamps.push(startOfCurrentHour - i * 3600);
 
-    const [mappingRes, latestRes, ...hourResponses] = await Promise.all([
-      fetch("https://prices.runescape.wiki/api/v1/osrs/mapping", { headers: WIKI_HEADERS }),
-      fetch("https://prices.runescape.wiki/api/v1/osrs/latest", { headers: WIKI_HEADERS }),
-      ...timestamps.map(ts => fetch("https://prices.runescape.wiki/api/v1/osrs/1h?timestamp=" + ts, { headers: WIKI_HEADERS }))
-    ]);
-
-    const mapping = await mappingRes.json();
-    const latest = await latestRes.json();
+    const hourResponses = await Promise.all(timestamps.map(ts => fetch("https://prices.runescape.wiki/api/v1/osrs/1h?timestamp=" + ts, { headers: WIKI_HEADERS })));
     const hourData = await Promise.all(hourResponses.map(r => r.json()));
 
-    const idToName = {};
-    if (Array.isArray(mapping)) mapping.forEach(m => { if (m && m.id != null && m.name != null) idToName[m.id] = m.name; });
+    const itemSeries = {};
+    items.forEach(it => { itemSeries[it.id] = { name: it.name, points: [] }; });
 
-    const itemStats = {};
-    for (const res of hourData) {
-      if (!res.data) continue;
-      for (const [idStr, row] of Object.entries(res.data)) {
-        if (!itemStats[idStr]) itemStats[idStr] = { volumes: [], spreads: [] };
-        const vol = (row.highPriceVolume || 0) + (row.lowPriceVolume || 0);
-        itemStats[idStr].volumes.push(vol);
+    for (let h = 0; h < hourData.length; h++) {
+      const ts = timestamps[h];
+      const res = hourData[h];
+      if (!res || !res.data) continue;
+      const hour = new Date(ts * 1000).getUTCHours();
+      items.forEach(it => {
+        const row = res.data[it.id];
+        if (!row) return;
         const high = row.avgHighPrice != null ? row.avgHighPrice : null;
         const low = row.avgLowPrice != null ? row.avgLowPrice : null;
-        if (high != null && low != null) itemStats[idStr].spreads.push(high - low);
-      }
-    }
-
-    const latestData = (latest && latest.data) ? latest.data : {};
-    const opportunities = [];
-    for (let i = 0; i < SPREAD_WATCH_IDS.length; i++) {
-      const itemId = String(SPREAD_WATCH_IDS[i]);
-      const s = itemStats[itemId];
-      const cur = latestData[itemId];
-      const instabuy = cur && cur.high != null ? cur.high : null;
-      const instasell = cur && cur.low != null ? cur.low : null;
-      const highTime = cur && cur.highTime != null ? cur.highTime : null;
-      const lowTime = cur && cur.lowTime != null ? cur.lowTime : null;
-
-      let totalVol = 0, volCV = null, meanSpread = null, spreadCV = null;
-      if (s) {
-        const volumes = s.volumes.filter(v => v > 0);
-        totalVol = volumes.reduce((a, b) => a + b, 0);
-        const meanVol = volumes.length ? totalVol / volumes.length : 0;
-        volCV = meanVol > 0 ? stdDev(volumes) / meanVol : null;
-        const spreads = s.spreads.filter(x => x >= 0);
-        meanSpread = spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null;
-        spreadCV = meanSpread != null && meanSpread > 0 ? stdDev(spreads) / meanSpread : null;
-      }
-
-      const margin = (instabuy != null && instasell != null) ? instabuy - instasell : null;
-      const spread = margin; // current spread = instabuy - instasell
-
-      opportunities.push({
-        itemId,
-        name: idToName[itemId] || "—",
-        instabuy,
-        instasell,
-        highTime,
-        lowTime,
-        margin,
-        spread,
-        totalVol,
-        volCV,
-        spreadCV
+        const vol = (row.highPriceVolume || 0) + (row.lowPriceVolume || 0);
+        const price = (high != null && low != null) ? (high + low) / 2 : null;
+        const spread = (high != null && low != null) ? high - low : null;
+        if (price != null) itemSeries[it.id].points.push({ price, spread, volume: vol, hour });
       });
     }
 
-    tbody.innerHTML = opportunities.map(x => {
-      const buyAge = timeAgo(x.highTime);
-      const sellAge = timeAgo(x.lowTime);
-      const ageStyle = "font-size:11px;color:#6b7280;";
-      return "<tr style=\"border-bottom:1px solid #eee;\">" +
-        "<td style=\"padding:14px 16px;\">" + (x.name || "—").replace(/</g, "&lt;") + "</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\"><span>" + (x.instabuy != null ? x.instabuy.toLocaleString() : "—") + "</span><br><span style=\"" + ageStyle + "\">" + buyAge + "</span></td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\"><span>" + (x.instasell != null ? x.instasell.toLocaleString() : "—") + "</span><br><span style=\"" + ageStyle + "\">" + sellAge + "</span></td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.margin != null ? x.margin.toLocaleString() : "—") + "</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.spread != null ? x.spread.toLocaleString() : "—") + "</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.spreadCV != null ? (x.spreadCV * 100).toFixed(1) + "%" : "—") + "</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.totalVol ? x.totalVol.toLocaleString() : "—") + "</td>" +
-        "<td style=\"padding:14px 16px;text-align:right;\">" + (x.volCV != null ? (x.volCV * 100).toFixed(1) + "%" : "—") + "</td>" +
-        "</tr>";
-    }).join("");
+    container.innerHTML = "";
+    const chartOptions = { responsive: true, maintainAspectRatio: true, aspectRatio: 2, plugins: { legend: { display: false } }, scales: { x: { grid: { color: "#eee" } }, y: { grid: { color: "#eee" } } } };
+
+    items.forEach((it, idx) => {
+      const pts = itemSeries[it.id].points;
+      if (pts.length === 0) {
+        container.appendChild(document.createElement("div")).innerHTML = "<p style=\"color:#6b7280;\">" + (it.name || it.id).replace(/</g, "&lt;") + ": no data in last 24h.</p>";
+        return;
+      }
+      const title = document.createElement("h3");
+      title.style.cssText = "margin:24px 0 8px 0;font-size:1rem;color:#1a1a1a;";
+      title.textContent = it.name || "ID " + it.id;
+      container.appendChild(title);
+
+      const grid = document.createElement("div");
+      grid.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;";
+      container.appendChild(grid);
+
+      const spreadVsPrice = document.createElement("div");
+      spreadVsPrice.innerHTML = "<canvas id=\"corr_s_" + it.id + "_" + idx + "\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Spread vs price</p>";
+      grid.appendChild(spreadVsPrice);
+      const volVsPrice = document.createElement("div");
+      volVsPrice.innerHTML = "<canvas id=\"corr_v_" + it.id + "_" + idx + "\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Volume vs price</p>";
+      grid.appendChild(volVsPrice);
+      const timeVsPrice = document.createElement("div");
+      timeVsPrice.innerHTML = "<canvas id=\"corr_t_" + it.id + "_" + idx + "\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:4px;\">Time of day (UTC) vs price</p>";
+      grid.appendChild(timeVsPrice);
+
+      const spreadData = pts.filter(p => p.spread != null).map(p => ({ x: p.spread, y: p.price }));
+      const volData = pts.map(p => ({ x: p.volume, y: p.price }));
+      const byHour = {};
+      pts.forEach(p => { if (!byHour[p.hour]) byHour[p.hour] = []; byHour[p.hour].push(p.price); });
+      const timeData = Object.keys(byHour).sort((a, b) => Number(a) - Number(b)).map(h => ({ x: Number(h), y: byHour[h].reduce((a, b) => a + b, 0) / byHour[h].length }));
+
+      if (typeof Chart !== "undefined") {
+        if (spreadData.length) {
+          const c1 = new Chart(document.getElementById("corr_s_" + it.id + "_" + idx), { type: "scatter", data: { datasets: [{ data: spreadData, backgroundColor: "rgba(34,197,94,0.6)", borderColor: "#22c55e", borderWidth: 1 }] }, options: { ...chartOptions, scales: { x: { title: { display: true, text: "Spread" }, grid: { color: "#eee" } }, y: { title: { display: true, text: "Price" }, grid: { color: "#eee" } } } });
+          correlationCharts.push(c1);
+        }
+        const c2 = new Chart(document.getElementById("corr_v_" + it.id + "_" + idx), { type: "scatter", data: { datasets: [{ data: volData, backgroundColor: "rgba(168,85,247,0.6)", borderColor: "#a855f7", borderWidth: 1 }] }, options: { ...chartOptions, scales: { x: { title: { display: true, text: "Volume" }, grid: { color: "#eee" } }, y: { title: { display: true, text: "Price" }, grid: { color: "#eee" } } } });
+        correlationCharts.push(c2);
+        const c3 = new Chart(document.getElementById("corr_t_" + it.id + "_" + idx), { type: "line", data: { labels: timeData.map(d => d.x + ":00"), datasets: [{ label: "Price", data: timeData.map(d => d.y), borderColor: "#ff8c42", backgroundColor: "rgba(255,140,66,0.2)", fill: true, tension: 0.2 }] }, options: { ...chartOptions, scales: { x: { title: { display: true, text: "Hour (UTC)" }, grid: { color: "#eee" } }, y: { title: { display: true, text: "Price" }, grid: { color: "#eee" } } } });
+        correlationCharts.push(c3);
+      }
+    });
 
     updateLastUpdatedStamp();
   } catch (e) {
-    tbody.innerHTML = "<tr><td colspan=\"8\" style=\"padding:14px 16px;color:#dc2626;\">Error: " + (e && e.message ? e.message : "network") + "</td></tr>";
+    container.innerHTML = "<p style=\"color:#dc2626;\">Error: " + (e && e.message ? e.message : "network") + "</p>";
   }
 }
 
