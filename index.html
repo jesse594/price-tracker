@@ -135,7 +135,7 @@
 
 <section class="section">
   <h2 class="section-title">Correlation: spread, volume &amp; time vs price</h2>
-  <p class="section-desc">Pick up to 5 items (edit above and refresh to change). Three graphs: correlation coefficient with price for spread, volume, and time of day (last 24h). Same scale (−1 to 1) so all items comparable.</p>
+  <p class="section-desc">Pick up to 5 items (edit above and refresh to change). Three line charts over the 24h range: spread–price correlation, volume–price correlation, and price over time. One line per item.</p>
   <div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
     <input id="corr_item_1" class="form-input" placeholder="Item 1 (name or ID)" value="Coal" style="width:160px;">
     <input id="corr_item_2" class="form-input" placeholder="Item 2 (name or ID)" value="Steel cannonball" style="width:160px;">
@@ -435,6 +435,18 @@ function pearson(xArr, yArr) {
   return Math.max(-1, Math.min(1, num / den));
 }
 
+function rollingCorrelation(pts, getX, getY, index, window) {
+  var half = Math.floor(window / 2);
+  var start = Math.max(0, index - half);
+  var end = Math.min(pts.length, index + half + 1);
+  var xArr = [], yArr = [];
+  for (var i = start; i < end; i++) {
+    var x = getX(pts[i]), y = getY(pts[i]);
+    if (x != null && y != null) { xArr.push(x); yArr.push(y); }
+  }
+  return pearson(xArr, yArr);
+}
+
 async function resolveItemIds() {
   const mapping = await getItemMapping();
   const ids = [];
@@ -494,48 +506,51 @@ async function loadCorrelationGraphs() {
       });
     }
 
-    var labels = [];
-    var rSpread = [];
-    var rVolume = [];
-    var rTime = [];
-    items.forEach(function (it) {
+    var hourLabels = [];
+    var n = 24;
+    for (var i = 0; i < n; i++) hourLabels.push(i + ":00");
+
+    var lineColors = ["#22c55e", "#a855f7", "#ff8c42", "#3b82f6", "#ec4899"];
+    var datasetsSpread = [], datasetsVolume = [], datasetsPrice = [];
+    items.forEach(function (it, idx) {
       var pts = itemSeries[it.id].points;
       if (pts.length < 2) return;
-      var spreads = [], pricesS = [], volumes = [], pricesV = [], hours = [], pricesT = [];
-      pts.forEach(function (p) {
-        if (p.spread != null && p.price != null) { spreads.push(p.spread); pricesS.push(p.price); }
-        volumes.push(p.volume); pricesV.push(p.price);
-        hours.push(p.hour); pricesT.push(p.price);
-      });
-      var pSpread = pearson(spreads, pricesS);
-      var pVol = pearson(volumes, pricesV);
-      var pTime = pearson(hours, pricesT);
-      labels.push((it.name || "ID " + it.id).replace(/</g, ""));
-      rSpread.push(pSpread != null ? Math.round(pSpread * 100) / 100 : null);
-      rVolume.push(pVol != null ? Math.round(pVol * 100) / 100 : null);
-      rTime.push(pTime != null ? Math.round(pTime * 100) / 100 : null);
+      var itemName = (it.name || "ID " + it.id).replace(/</g, "");
+      var color = lineColors[idx % lineColors.length];
+      var spreadLine = [], volumeLine = [], priceLine = [];
+      for (var i = 0; i < pts.length; i++) {
+        var rS = rollingCorrelation(pts, function (p) { return p.spread; }, function (p) { return p.price; }, i, 5);
+        var rV = rollingCorrelation(pts, function (p) { return p.volume; }, function (p) { return p.price; }, i, 5);
+        spreadLine.push(rS != null ? Math.round(rS * 100) / 100 : null);
+        volumeLine.push(rV != null ? Math.round(rV * 100) / 100 : null);
+        priceLine.push(pts[i].price);
+      }
+      datasetsSpread.push({ label: itemName, data: spreadLine, borderColor: color, backgroundColor: color + "20", fill: false, tension: 0.2 });
+      datasetsVolume.push({ label: itemName, data: volumeLine, borderColor: color, backgroundColor: color + "20", fill: false, tension: 0.2 });
+      datasetsPrice.push({ label: itemName, data: priceLine, borderColor: color, backgroundColor: color + "20", fill: false, tension: 0.2 });
     });
 
-    if (labels.length === 0) {
+    if (datasetsSpread.length === 0) {
       container.innerHTML = "<p style=\"color:#6b7280;\">No items with enough data in last 24h.</p>";
       updateLastUpdatedStamp();
       return;
     }
 
     container.innerHTML = "<div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:16px;\">" +
-      "<div><canvas id=\"corr_chart_spread\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Spread vs price (r)</p></div>" +
-      "<div><canvas id=\"corr_chart_volume\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Volume vs price (r)</p></div>" +
-      "<div><canvas id=\"corr_chart_time\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Time of day vs price (r)</p></div>" +
+      "<div><canvas id=\"corr_chart_spread\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Spread vs price (correlation over time)</p></div>" +
+      "<div><canvas id=\"corr_chart_volume\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Volume vs price (correlation over time)</p></div>" +
+      "<div><canvas id=\"corr_chart_time\"></canvas><p style=\"font-size:12px;color:#6b7280;margin-top:8px;\">Price over time (hour)</p></div>" +
       "</div>";
 
-    var chartOpt = { responsive: true, maintainAspectRatio: true, aspectRatio: 1.2, plugins: { legend: { display: false } }, scales: { x: { grid: { color: "#eee" } }, y: { min: -1, max: 1, grid: { color: "#eee" }, title: { display: true, text: "Correlation (r)" } } } };
-    var barColors = ["#22c55e", "#a855f7", "#ff8c42", "#3b82f6", "#ec4899"];
+    var corrY = { min: -1, max: 1, grid: { color: "#eee" }, title: { display: true, text: "Correlation (r)" } };
+    var priceY = { grid: { color: "#eee" }, title: { display: true, text: "Price" } };
+    var xAxis = { grid: { color: "#eee" }, title: { display: true, text: "Hour (range)" } };
     if (typeof Chart !== "undefined") {
-      var c1 = new Chart(document.getElementById("corr_chart_spread"), { type: "bar", data: { labels: labels, datasets: [{ label: "Spread–price", data: rSpread, backgroundColor: barColors.slice(0, labels.length) }] }, options: chartOpt });
+      var c1 = new Chart(document.getElementById("corr_chart_spread"), { type: "line", data: { labels: hourLabels, datasets: datasetsSpread }, options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.5, plugins: { legend: { display: true } }, scales: { x: xAxis, y: corrY } } });
       correlationCharts.push(c1);
-      var c2 = new Chart(document.getElementById("corr_chart_volume"), { type: "bar", data: { labels: labels, datasets: [{ label: "Volume–price", data: rVolume, backgroundColor: barColors.slice(0, labels.length) }] }, options: chartOpt });
+      var c2 = new Chart(document.getElementById("corr_chart_volume"), { type: "line", data: { labels: hourLabels, datasets: datasetsVolume }, options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.5, plugins: { legend: { display: true } }, scales: { x: xAxis, y: corrY } } });
       correlationCharts.push(c2);
-      var c3 = new Chart(document.getElementById("corr_chart_time"), { type: "bar", data: { labels: labels, datasets: [{ label: "Time–price", data: rTime, backgroundColor: barColors.slice(0, labels.length) }] }, options: chartOpt });
+      var c3 = new Chart(document.getElementById("corr_chart_time"), { type: "line", data: { labels: hourLabels, datasets: datasetsPrice }, options: { responsive: true, maintainAspectRatio: true, aspectRatio: 1.5, plugins: { legend: { display: true } }, scales: { x: xAxis, y: priceY } } });
       correlationCharts.push(c3);
     }
 
